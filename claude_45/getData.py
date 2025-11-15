@@ -75,6 +75,6 @@ class HHParser:
             if details:
                 detailed_vacancies.append(details)
                 print(f"Обработано: {i}/{len(vacancies_list)}")
-                time.sleep(0.2)
+                time.sleep(0.01)
 
         return detailed_vacancies

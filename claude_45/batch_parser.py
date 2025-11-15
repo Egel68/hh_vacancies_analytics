@@ -11,7 +11,7 @@ async def parse_multiple_queries(queries: List[str], area: int = 1,
     """
     Асинхронный парсинг нескольких должностей одновременно
     """
-    parser = HHParserAsync(max_concurrent_requests=15)
+    parser = HHParserAsync(max_concurrent_requests=4)
 
     tasks = []
     for query in queries:
@@ -99,4 +99,4 @@ if __name__ == "__main__":
         'Backend разработчик'
     ]
 
-    batch_analysis(queries, area=1, max_vacancies=100)
+    batch_analysis(queries, area=1, max_vacancies=10)
