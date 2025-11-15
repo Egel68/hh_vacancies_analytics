@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pathlib import Path
 import matplotlib
+from pathlib import Path
 from processing import VacancyAnalyzer
 
 # Настройка для русского языка
@@ -11,11 +11,21 @@ sns.set_style("whitegrid")
 
 
 def visualize_results(analyzer: VacancyAnalyzer, output_dir: str = "./result",
-                      prefix: str = "vacancies"):
-    """Визуализация результатов анализа"""
+                      prefix: str = "", show_plots: bool = False):
+    """
+    Визуализация результатов анализа
 
+    Args:
+        analyzer: объект VacancyAnalyzer
+        output_dir: папка для сохранения
+        prefix: префикс для имен файлов
+        show_plots: показывать ли графики (plt.show())
+    """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+
+    # Добавляем underscore к префиксу если он не пустой
+    file_prefix = f"{prefix}_" if prefix else ""
 
     # 1. Top навыков
     skills_df = analyzer.analyze_skills()
@@ -32,10 +42,12 @@ def visualize_results(analyzer: VacancyAnalyzer, output_dir: str = "./result",
 
         # Добавляем значения на график
         for i, v in enumerate(top_skills['Количество']):
-            plt.text(v + 0.5, i, str(v), va='center', fontsize=10)
+            plt.text(v + 0.3, i, str(v), va='center', fontsize=9)
 
         plt.tight_layout()
-        plt.savefig(output_path / f'{prefix}_top_skills.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_path / f'{file_prefix}top_skills.png', dpi=300, bbox_inches='tight')
+        if show_plots:
+            plt.show()
         plt.close()
         print(f"  ✅ График навыков сохранен")
 
@@ -54,10 +66,12 @@ def visualize_results(analyzer: VacancyAnalyzer, output_dir: str = "./result",
 
         # Добавляем значения
         for i, v in enumerate(top_req['Количество']):
-            plt.text(v + 0.5, i, str(v), va='center', fontsize=10)
+            plt.text(v + 0.3, i, str(v), va='center', fontsize=9)
 
         plt.tight_layout()
-        plt.savefig(output_path / f'{prefix}_top_requirements.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_path / f'{file_prefix}top_requirements.png', dpi=300, bbox_inches='tight')
+        if show_plots:
+            plt.show()
         plt.close()
         print(f"  ✅ График требований сохранен")
 
@@ -87,9 +101,9 @@ def visualize_results(analyzer: VacancyAnalyzer, output_dir: str = "./result",
             plt.title('Распределение вакансий по требуемому опыту',
                       fontsize=14, fontweight='bold')
             plt.tight_layout()
-            plt.savefig(output_path / f'{prefix}_experience_distribution.png',
+            plt.savefig(output_path / f'{file_prefix}experience_distribution.png',
                         dpi=300, bbox_inches='tight')
+            if show_plots:
+                plt.show()
             plt.close()
             print(f"  ✅ График распределения опыта сохранен")
-
-    print(f"\n📁 Все графики сохранены в: {output_path.absolute()}")

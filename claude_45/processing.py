@@ -52,24 +52,46 @@ class VacancyAnalyzer:
         skills_count = Counter(all_skills)
         skills_df = pd.DataFrame(skills_count.most_common(),
                                  columns=['Навык', 'Количество'])
-        skills_df['Процент'] = (skills_df['Количество'] / len(self.df) * 100).round(2)
+
+        if len(skills_df) > 0:
+            skills_df['Процент'] = (skills_df['Количество'] / len(self.df) * 100).round(2)
 
         return skills_df
 
     def analyze_requirements(self, tech_keywords: List[str] = None) -> pd.DataFrame:
         """Анализ требований из описания вакансий"""
         if tech_keywords is None:
-            # Базовый список технологий и требований
+            # Расширенный список технологий и требований
             tech_keywords = [
-                'Python', 'Java', 'JavaScript', 'SQL', 'Git',
-                'Docker', 'Kubernetes', 'AWS', 'Azure',
-                'React', 'Vue', 'Angular', 'Node.js',
-                'Django', 'Flask', 'FastAPI',
-                'PostgreSQL', 'MySQL', 'MongoDB',
+                # Языки программирования
+                'Python', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Golang', 'C++', 'C#', 'SQL',
+
+                # Python фреймворки
+                'Django', 'Flask', 'FastAPI', 'Tornado', 'Aiohttp',
+
+                # Базы данных
+                'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch', 'ClickHouse',
+
+                # DevOps
+                'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI',
+
+                # Облака
+                'AWS', 'Azure', 'Google Cloud', 'GCP',
+
+                # API
                 'REST API', 'GraphQL', 'Microservices',
-                'CI/CD', 'Agile', 'Scrum',
-                'Machine Learning', 'Data Science',
-                'English', 'Английский язык'
+
+                # Методологии
+                'Agile', 'Scrum', 'Git',
+
+                # ML/DS
+                'Machine Learning', 'Data Science', 'TensorFlow', 'PyTorch',
+
+                # Frontend
+                'React', 'Vue', 'Angular', 'Node.js',
+
+                # Языки
+                'English', 'Английский язык', 'Английский'
             ]
 
         requirements_counter = Counter()
@@ -80,7 +102,9 @@ class VacancyAnalyzer:
 
         req_df = pd.DataFrame(requirements_counter.most_common(),
                               columns=['Требование', 'Количество'])
-        req_df['Процент'] = (req_df['Количество'] / len(self.df) * 100).round(2)
+
+        if len(req_df) > 0:
+            req_df['Процент'] = (req_df['Количество'] / len(self.df) * 100).round(2)
 
         return req_df
 
