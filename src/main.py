@@ -1,10 +1,10 @@
 """
-Главный файл для анализа вакансий с hh.ru
+Главный файл для анализа вакансий с hh.ru.
 
 Поддерживает:
-- Синхронный и асинхронный режимы
-- Одну или несколько должностей
-- Гибкую конфигурацию
+- Синхронный и асинхронный режимы парсинга
+- Анализ одной или нескольких должностей
+- Гибкую конфигурацию через словарь CONFIG
 """
 
 import json
@@ -20,79 +20,56 @@ from batch_parser import run_batch_analysis
 # ========================================
 
 CONFIG = {
-    # Режим работы: 'single' - одна должность, 'batch' - несколько
-    'mode': 'batch',  # 'single' или 'batch'
-
-    # Тип парсинга: True - асинхронный (быстрый), False - синхронный (надежный)
+    # Режим работы: 'single' - одна должность, 'batch' - несколько должностей
+    'mode': 'single',
+    # Использовать асинхронный режим (быстрее, но может попасть под rate limit)
     'async_mode': False,
-
-    # Должность для анализа (если mode='single')
-    'query': 'Python разработчик',
-
-    # Список должностей (если mode='batch')
+    # Параметры для режима 'single'
+    'query': 'Системный аналитик',
+    # Параметры для режима 'batch'
     'queries': [
         'Python разработчик',
         'Data Scientist',
         'Machine Learning Engineer',
         'Backend разработчик'
     ],
-
-    # Регион: 1 - Москва, 2 - СПб, 113 - Россия
-    'area': 1,
-
-    # Максимальное количество вакансий для парсинга
-    'max_vacancies': 100,
-
-    # Количество одновременных запросов (только для async)
-    'max_concurrent': 4,
-
-    # Папка для сохранения результатов
+    # Общие параметры
+    'area': 1,  # 1 - Москва, 2 - СПб, 113 - Россия
+    'max_vacancies': 1000,
+    'max_concurrent': 2,  # Для асинхронного режима
     'output_dir': './result',
+    'show_plots': True,  # Показывать графики при создании
 
-    # Показывать ли графики (True/False)
-    'show_plots': True,
-
-    # Расширенный список ключевых слов для анализа требований
+    # Ключевые слова для анализа требований
     'tech_keywords': [
-        # Языки
-        'Python', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Golang', 'C++', 'C#', 'SQL',
-
+        # Языки программирования
+        'Python', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Golang',
+        'C++', 'C#', 'SQL',
         # Python фреймворки
         'Django', 'Flask', 'FastAPI', 'Tornado', 'Aiohttp', 'Pyramid',
-
         # Базы данных
-        'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch', 'ClickHouse',
-        'SQLAlchemy', 'Alembic',
-
-        # Очереди
+        'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch',
+        'ClickHouse', 'SQLAlchemy', 'Alembic',
+        # Очереди сообщений
         'RabbitMQ', 'Kafka', 'Celery',
-
         # DevOps
-        'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI', 'GitHub Actions',
-        'Terraform', 'Ansible', 'Linux',
-
-        # Облака
+        'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI',
+        'GitHub Actions', 'Terraform', 'Ansible', 'Linux',
+        # Облачные платформы
         'AWS', 'Azure', 'Google Cloud', 'GCP', 'Yandex Cloud',
-
         # API
         'REST API', 'GraphQL', 'gRPC', 'WebSocket', 'Microservices',
-
         # Тестирование
         'Pytest', 'Unittest', 'TDD',
-
         # Frontend
         'React', 'Vue', 'Angular', 'Node.js', 'HTML', 'CSS',
-
         # Методологии
         'Agile', 'Scrum', 'Kanban', 'Git',
-
         # ML/DS
         'Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch',
         'Machine Learning', 'Deep Learning', 'Data Science',
-
         # Языки
         'Английский', 'English', 'Английский язык',
-
         # Другое
         'Asyncio', 'Scrapy', 'BeautifulSoup', 'Selenium',
         'Nginx', 'Gunicorn', 'Uvicorn'
@@ -100,16 +77,16 @@ CONFIG = {
 }
 
 
-# ========================================
-# ФУНКЦИИ
-# ========================================
+def analyze_single_position(config: dict) -> None:
+    """
+    Выполняет анализ вакансий для одной должности.
 
-def analyze_single_position(config: dict):
-    """Анализ одной должности"""
+    Args:
+        config: Словарь с параметрами конфигурации
+    """
     query = config['query']
     safe_query = query.replace(' ', '_').replace('/', '_').lower()
 
-    # Создаем папку для должности
     output_dir = Path(config['output_dir']) / safe_query
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -142,16 +119,16 @@ def analyze_single_position(config: dict):
         print("❌ Вакансии не найдены")
         return
 
-    # Анализ
+    # Анализ данных
     print("\n📊 Анализируем данные...")
     analyzer = VacancyAnalyzer(vacancies)
     df = analyzer.extract_data()
 
-    # Сохранение
+    # Сохранение обработанных данных
     df.to_csv(output_dir / 'processed.csv', index=False, encoding='utf-8-sig')
     print(f"💾 Сохранено {len(df)} обработанных вакансий")
 
-    # Навыки
+    # Анализ навыков
     print("\n📌 Топ-20 навыков:")
     print("-" * 60)
     skills_df = analyzer.analyze_skills()
@@ -159,7 +136,7 @@ def analyze_single_position(config: dict):
         print(skills_df.head(20).to_string(index=False))
         skills_df.to_csv(output_dir / 'skills.csv', index=False, encoding='utf-8-sig')
 
-    # Требования
+    # Анализ требований
     print("\n📌 Топ-20 требований:")
     print("-" * 60)
     requirements_df = analyzer.analyze_requirements(config.get('tech_keywords'))
@@ -167,7 +144,7 @@ def analyze_single_position(config: dict):
         print(requirements_df.head(20).to_string(index=False))
         requirements_df.to_csv(output_dir / 'requirements.csv', index=False, encoding='utf-8-sig')
 
-    # Зарплаты
+    # Статистика по зарплатам
     print("\n💰 Статистика по зарплатам:")
     print("-" * 60)
     salary_stats = analyzer.get_salary_stats()
@@ -180,7 +157,7 @@ def analyze_single_position(config: dict):
     with open(output_dir / 'salary_stats.json', 'w', encoding='utf-8') as f:
         json.dump(salary_stats, f, ensure_ascii=False, indent=2)
 
-    # Опыт
+    # Распределение по опыту
     print("\n👔 Требуемый опыт:")
     print("-" * 60)
     if 'experience' in df.columns:
@@ -195,6 +172,7 @@ def analyze_single_position(config: dict):
         show_plots=config.get('show_plots', False)
     )
 
+    # Итоговая информация
     print("\n" + "=" * 60)
     print("✅ АНАЛИЗ ЗАВЕРШЕН!")
     print("=" * 60)
@@ -210,8 +188,13 @@ def analyze_single_position(config: dict):
     print("  • experience_distribution.png - график опыта")
 
 
-def analyze_multiple_positions(config: dict):
-    """Анализ нескольких должностей"""
+def analyze_multiple_positions(config: dict) -> None:
+    """
+    Выполняет анализ вакансий для нескольких должностей.
+
+    Args:
+        config: Словарь с параметрами конфигурации
+    """
     run_batch_analysis(
         queries=config['queries'],
         area=config['area'],
@@ -222,12 +205,16 @@ def analyze_multiple_positions(config: dict):
     )
 
 
-def main():
-    """Главная функция"""
+def main() -> None:
+    """
+    Главная функция программы.
+
+    Выбирает режим работы на основе конфигурации и запускает
+    соответствующий анализ.
+    """
     print("\n" + "🔍 HH.RU VACANCY ANALYZER ".center(60, "="))
     print()
 
-    # Выбираем режим работы
     if CONFIG['mode'] == 'single':
         analyze_single_position(CONFIG)
     elif CONFIG['mode'] == 'batch':
