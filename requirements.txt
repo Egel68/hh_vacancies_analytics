@@ -6,4 +6,4 @@ bs4==0.0.2
 tqdm==4.67.1
 scikit-learn==1.7.2
 aiohttp>=3.9.0
-asyncio
+asyncio==4.0.0

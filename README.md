@@ -1,12 +1,33 @@
-# Claude
+# Программа для парсинга информации с вакансий hh.ru
 
-# Анализ с кастомными ключевыми словами
+1. Загрузить репо
+``` bash
+git clone https://github.com/Egel68/hh_vacancies_analytics.git
 ```
-custom_keywords = [
-    'Python', 'Django', 'FastAPI', 'PostgreSQL',
-    'Docker', 'Kubernetes', 'Redis', 'Celery',
-    'Git', 'CI/CD', 'REST API', 'GraphQL'
-]
-
-requirements_df = analyzer.analyze_requirements(custom_keywords)
+2. Открыть директорию проекта
+```bash
+cd hh_vacancies_analytics
+```
+3. Создать виртуальное окружение
+```bash
+python -m venv venv
+```
+4. Установить зависимости python
+```bash
+pip install -r requirements.txt 
+```
+5. Открыть файл main.py и заполнить конфигурацию
+- `mode`: {"single", "batch"} - сколько должностей анализировать (одну или несколько)
+- `async_mode`: bool - асинхронное взаимодействие активировано. Асихронно менее надежно, так как можно попасть под rateLimit hh.ru
+- `query`: str - строка в поиске на hh.ru (название вакансии). Параметр используется при mode == single
+- `queries`: list[str] - список из строк названий вакансии, которые будут искаться на hh.ru
+- `area`: int - номер региона поиска. Регион: 1 - Москва, 2 - СПб, 113 - Россия
+- `max_vacancies`: int - кол-во вакансий для анализа из общего числа
+- `max_concurrent` int - кол-во параллельных запросов. Параметр используется при async_mode == True
+- `output_dir` str - директория, куда сохранять полученные данные
+- `show_plots` bool - сохранять графики
+- `tech_keywords` list[str] - слова, которые искать в вакансии если нужно проанализировать что-то конкретное
+6. Запустить `main.py`
+```bash
+python main.py
 ```

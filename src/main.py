@@ -20,79 +20,48 @@ from batch_parser import run_batch_analysis
 # ========================================
 
 CONFIG = {
-    # Режим работы: 'single' - одна должность, 'batch' - несколько
-    'mode': 'batch',  # 'single' или 'batch'
-
-    # Тип парсинга: True - асинхронный (быстрый), False - синхронный (надежный)
+    'mode': 'single',
     'async_mode': False,
-
-    # Должность для анализа (если mode='single')
-    'query': 'Python разработчик',
-
-    # Список должностей (если mode='batch')
+    'query': 'Системный аналитик',
     'queries': [
         'Python разработчик',
         'Data Scientist',
         'Machine Learning Engineer',
         'Backend разработчик'
     ],
-
-    # Регион: 1 - Москва, 2 - СПб, 113 - Россия
     'area': 1,
-
-    # Максимальное количество вакансий для парсинга
-    'max_vacancies': 100,
-
-    # Количество одновременных запросов (только для async)
-    'max_concurrent': 4,
-
-    # Папка для сохранения результатов
+    'max_vacancies': 1000,
+    'max_concurrent': 2,
     'output_dir': './result',
-
-    # Показывать ли графики (True/False)
     'show_plots': True,
-
-    # Расширенный список ключевых слов для анализа требований
     'tech_keywords': [
         # Языки
         'Python', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Golang', 'C++', 'C#', 'SQL',
-
         # Python фреймворки
         'Django', 'Flask', 'FastAPI', 'Tornado', 'Aiohttp', 'Pyramid',
-
         # Базы данных
         'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch', 'ClickHouse',
         'SQLAlchemy', 'Alembic',
-
         # Очереди
         'RabbitMQ', 'Kafka', 'Celery',
-
         # DevOps
         'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI', 'GitHub Actions',
         'Terraform', 'Ansible', 'Linux',
-
         # Облака
         'AWS', 'Azure', 'Google Cloud', 'GCP', 'Yandex Cloud',
-
         # API
         'REST API', 'GraphQL', 'gRPC', 'WebSocket', 'Microservices',
-
         # Тестирование
         'Pytest', 'Unittest', 'TDD',
-
         # Frontend
         'React', 'Vue', 'Angular', 'Node.js', 'HTML', 'CSS',
-
         # Методологии
         'Agile', 'Scrum', 'Kanban', 'Git',
-
         # ML/DS
         'Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch',
         'Machine Learning', 'Deep Learning', 'Data Science',
-
         # Языки
         'Английский', 'English', 'Английский язык',
-
         # Другое
         'Asyncio', 'Scrapy', 'BeautifulSoup', 'Selenium',
         'Nginx', 'Gunicorn', 'Uvicorn'

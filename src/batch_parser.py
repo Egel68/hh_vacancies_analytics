@@ -3,9 +3,7 @@ import json
 from typing import List, Dict
 from pathlib import Path
 import pandas as pd
-
 from getData import parse_vacancies_sync
-from hh_parser_async import parse_vacancies_async
 from processing import VacancyAnalyzer
 from visualization import visualize_results
 
