@@ -100,10 +100,10 @@ def analyze_single_query(
 
 
 def batch_analysis_sync(
-        queries: List[str],
-        area: int = 1,
-        max_vacancies: int = 100,
-        output_dir: str = "./result"
+    queries: List[str],
+    area: int = 1,
+    max_vacancies: int = 100,
+    output_dir: str = "./result"
 ) -> None:
     """
     Выполняет пакетный синхронный анализ нескольких должностей.
@@ -122,15 +122,16 @@ def batch_analysis_sync(
     summary_list = []
 
     for query in queries:
-        # Парсинг вакансий
+        # Парсинг вакансий (БЕЗ сохранения raw файла)
         vacancies = parse_vacancies_sync(
             query=query,
             area=area,
             max_vacancies=max_vacancies,
-            output_dir=output_dir
+            output_dir=output_dir,
+            save_raw=False  # <- Отключаем сохранение в базовую папку
         )
 
-        # Анализ данных
+        # Анализ данных (raw.json сохранится в правильную подпапку)
         summary = analyze_single_query(query, vacancies, output_dir)
         if summary:
             summary_list.append(summary)
@@ -151,11 +152,11 @@ def batch_analysis_sync(
 
 
 async def batch_analysis_async(
-        queries: List[str],
-        area: int = 1,
-        max_vacancies: int = 100,
-        max_concurrent: int = 10,
-        output_dir: str = "./result"
+    queries: List[str],
+    area: int = 1,
+    max_vacancies: int = 100,
+    max_concurrent: int = 10,
+    output_dir: str = "./result"
 ) -> None:
     """
     Выполняет пакетный асинхронный анализ нескольких должностей.
@@ -176,12 +177,12 @@ async def batch_analysis_async(
 
     parser = HHParserAsync(max_concurrent_requests=max_concurrent, output_dir=output_dir)
 
-    # Параллельный парсинг всех должностей
+    # Параллельный парсинг всех должностей (raw файлы НЕ сохраняются автоматически)
     tasks = [parser.parse_vacancies(query, area, max_vacancies) for query in queries]
     results = await asyncio.gather(*tasks)
     all_results = dict(zip(queries, results))
 
-    # Анализ каждой должности
+    # Анализ каждой должности (raw.json сохранится в правильную подпапку)
     summary_list = []
     for query, vacancies in all_results.items():
         summary = analyze_single_query(query, vacancies, output_dir)

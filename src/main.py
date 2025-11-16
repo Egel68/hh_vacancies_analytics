@@ -21,9 +21,9 @@ from batch_parser import run_batch_analysis
 
 CONFIG = {
     # Режим работы: 'single' - одна должность, 'batch' - несколько должностей
-    'mode': 'single',
+    'mode': 'batch',
     # Использовать асинхронный режим (быстрее, но может попасть под rate limit)
-    'async_mode': False,
+    'async_mode': True,
     # Параметры для режима 'single'
     'query': 'Системный аналитик',
     # Параметры для режима 'batch'
@@ -35,8 +35,8 @@ CONFIG = {
     ],
     # Общие параметры
     'area': 1,  # 1 - Москва, 2 - СПб, 113 - Россия
-    'max_vacancies': 1000,
-    'max_concurrent': 2,  # Для асинхронного режима
+    'max_vacancies': 10,
+    'max_concurrent': 1,  # Для асинхронного режима
     'output_dir': './result',
     'show_plots': True,  # Показывать графики при создании
 

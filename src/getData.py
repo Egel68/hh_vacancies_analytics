@@ -157,10 +157,11 @@ class HHParser:
 
 
 def parse_vacancies_sync(
-        query: str,
-        area: int = 1,
-        max_vacancies: int = 100,
-        output_dir: str = "./result"
+    query: str,
+    area: int = 1,
+    max_vacancies: int = 100,
+    output_dir: str = "./result",
+    save_raw: bool = True
 ) -> List[Dict]:
     """
     Удобная функция-обертка для синхронного парсинга вакансий.
@@ -170,6 +171,7 @@ def parse_vacancies_sync(
         area: Код региона (1 - Москва, 2 - СПб, 113 - Россия)
         max_vacancies: Максимальное количество вакансий для получения
         output_dir: Директория для сохранения результатов
+        save_raw: Сохранять ли raw.json файл (по умолчанию True)
 
     Returns:
         Список словарей с детальной информацией о вакансиях
@@ -177,7 +179,8 @@ def parse_vacancies_sync(
     parser = HHParser(output_dir=output_dir)
     vacancies = parser.parse_vacancies(query, area, max_vacancies)
 
-    if vacancies:
+    # Сохраняем результаты только если save_raw=True
+    if vacancies and save_raw:
         safe_query = query.replace(' ', '_').replace('/', '_').lower()
         parser.save_to_json(vacancies, f'{safe_query}_raw.json')
 
