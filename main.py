@@ -56,6 +56,18 @@ def main():
     print("\n" + "🔍 HH.RU VACANCY ANALYZER ".center(60, "="))
     print(f"Режим: {Config.MODE}")
     print(f"Парсинг: {Config.PARSING_MODE}")
+
+    # Определение лимита вакансий
+    if Config.COLLECT_ALL_VACANCIES:
+        max_vacancies = None
+        print(f"Лимит вакансий: НЕТ (собираем все доступные)")
+    else:
+        max_vacancies = Config.MAX_VACANCIES_LIMIT
+        if max_vacancies:
+            print(f"Лимит вакансий: {max_vacancies}")
+        else:
+            print(f"Лимит вакансий: не установлен")
+
     print("=" * 60 + "\n")
 
     # Создание pipeline через фабрику
@@ -66,7 +78,8 @@ def main():
         pipeline.process_single_query(
             query=Config.SINGLE_QUERY,
             area=Config.AREA,
-            max_vacancies=Config.MAX_VACANCIES,
+            max_vacancies=max_vacancies,
+            max_pages=Config.MAX_PAGES_LIMIT,
             show_plots=Config.SHOW_PLOTS,
             tech_keywords=Config.TECH_KEYWORDS
         )
@@ -75,7 +88,8 @@ def main():
         pipeline.process_batch_queries(
             queries=Config.BATCH_QUERIES,
             area=Config.AREA,
-            max_vacancies=Config.MAX_VACANCIES,
+            max_vacancies=max_vacancies,
+            max_pages=Config.MAX_PAGES_LIMIT,
             show_plots=Config.SHOW_PLOTS,
             tech_keywords=Config.TECH_KEYWORDS
         )

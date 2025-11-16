@@ -56,7 +56,8 @@ class VacancyPipeline:
             self,
             query: str,
             area: int = 1,
-            max_vacancies: int = 100,
+            max_vacancies: Optional[int] = 1000,
+            max_pages: int = 20,
             show_plots: bool = False,
             tech_keywords: Optional[List[str]] = None
     ) -> Dict:
@@ -66,7 +67,8 @@ class VacancyPipeline:
         Args:
             query: Название должности
             area: Код региона
-            max_vacancies: Максимальное количество вакансий
+            max_vacancies: Максимальное количество вакансий (None = все)
+            max_pages: Максимальное количество страниц для парсинга
             show_plots: Показывать ли графики
             tech_keywords: Ключевые слова для анализа требований
 
@@ -82,14 +84,16 @@ class VacancyPipeline:
         print(f"{'=' * 60}")
 
         # 1. Поиск вакансий
-        vacancies_list = self.searcher.search(query, area, max_pages=10)
+        vacancies_list = self.searcher.search(
+            query,
+            area,
+            max_pages=max_pages,
+            max_vacancies=max_vacancies
+        )
 
         if not vacancies_list:
             print(f"❌ Вакансии не найдены для: {query}")
             return {}
-
-        # Ограничение количества
-        vacancies_list = vacancies_list[:max_vacancies]
 
         # 2. Получение детальной информации
         detailed_vacancies = self.details_fetcher.fetch_details(vacancies_list)
@@ -132,19 +136,42 @@ class VacancyPipeline:
             str(output_dir / 'salary_stats.json')
         )
 
-        # 9. Визуализация
+        # ========== НОВЫЕ ГРУППИРОВКИ ==========
+
+        # 9. Анализ по компаниям
+        companies_df = analyzer.analyze_by_company(top_n=20)
+        if len(companies_df) > 0:
+            self.csv_saver.save(companies_df, str(output_dir / 'companies.csv'))
+
+        # 10. Анализ по формату работы
+        schedule_df = analyzer.analyze_by_schedule()
+        if len(schedule_df) > 0:
+            self.csv_saver.save(schedule_df, str(output_dir / 'schedule.csv'))
+
+        # 11. Анализ по станциям метро
+        metro_df = analyzer.analyze_by_metro(top_n=20)
+        if len(metro_df) > 0 and metro_df.iloc[0]['Станция метро'] != 'Нет данных':
+            self.csv_saver.save(metro_df, str(output_dir / 'metro.csv'))
+
+        # 12. Визуализация
         self.visualizer.visualize(analyzer, str(output_dir), show_plots)
 
-        # 10. Формирование сводки
+        # 13. Формирование сводки
         top_skills = (
             skills_df.head(5)['Навык'].tolist()
             if len(skills_df) > 0 else []
         )
 
+        top_companies = (
+            companies_df.head(3)['Компания'].tolist()
+            if len(companies_df) > 0 else []
+        )
+
         summary = {
             'Должность': query,
-            'Вакансий': len(df),
+            'Вакансий собрано': len(df),
             'Топ-5 навыков': ', '.join(top_skills),
+            'Топ-3 компании': ', '.join(top_companies),
             'Средняя ЗП (от)': salary_stats.get('avg_from', 'N/A'),
             'Медиана ЗП (от)': salary_stats.get('median_from', 'N/A'),
             'Папка': str(output_dir)
@@ -159,7 +186,8 @@ class VacancyPipeline:
             self,
             queries: List[str],
             area: int = 1,
-            max_vacancies: int = 100,
+            max_vacancies: Optional[int] = 1000,
+            max_pages: int = 20,
             show_plots: bool = False,
             tech_keywords: Optional[List[str]] = None
     ) -> None:
@@ -169,14 +197,20 @@ class VacancyPipeline:
         Args:
             queries: Список названий должностей
             area: Код региона
-            max_vacancies: Максимальное количество вакансий
+            max_vacancies: Максимальное количество вакансий (None = все)
+            max_pages: Максимальное количество страниц
             show_plots: Показывать ли графики
             tech_keywords: Ключевые слова для анализа
         """
         print("=" * 60)
         print("🔄 ПАКЕТНЫЙ АНАЛИЗ ВАКАНСИЙ")
         print("=" * 60)
-        print(f"Должности: {', '.join(queries)}\n")
+        print(f"Должности: {', '.join(queries)}")
+        if max_vacancies:
+            print(f"Лимит вакансий: {max_vacancies}")
+        else:
+            print(f"Лимит вакансий: не установлен (собираем все)")
+        print()
 
         summary_list = []
 
@@ -186,6 +220,7 @@ class VacancyPipeline:
                 query=query,
                 area=area,
                 max_vacancies=max_vacancies,
+                max_pages=max_pages,
                 show_plots=show_plots,
                 tech_keywords=tech_keywords
             )

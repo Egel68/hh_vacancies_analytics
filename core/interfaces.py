@@ -16,7 +16,8 @@ class IVacancySearcher(ABC):
             self,
             query: str,
             area: int = 1,
-            max_pages: int = 20
+            max_pages: int = 20,
+            max_vacancies: Optional[int] = None
     ) -> List[Dict]:
         """
         Поиск вакансий по запросу.
@@ -25,6 +26,7 @@ class IVacancySearcher(ABC):
             query: Название должности
             area: Код региона
             max_pages: Максимальное количество страниц
+            max_vacancies: Максимальное количество вакансий (None = все)
 
         Returns:
             Список вакансий с краткой информацией
@@ -88,6 +90,45 @@ class IVacancyAnalyzer(ABC):
     @abstractmethod
     def get_salary_stats(self) -> Dict:
         """Статистика по зарплатам."""
+        pass
+
+    # ========== НОВЫЕ МЕТОДЫ ГРУППИРОВКИ ==========
+
+    @abstractmethod
+    def analyze_by_company(self, top_n: int = 20) -> pd.DataFrame:
+        """
+        Группировка вакансий по компаниям.
+
+        Args:
+            top_n: Количество топовых компаний
+
+        Returns:
+            DataFrame с компаниями и количеством вакансий
+        """
+        pass
+
+    @abstractmethod
+    def analyze_by_schedule(self) -> pd.DataFrame:
+        """
+        Группировка вакансий по формату работы.
+
+        Returns:
+            DataFrame с форматами работы и их количеством
+            (удаленная работа, офис, гибрид, не указано)
+        """
+        pass
+
+    @abstractmethod
+    def analyze_by_metro(self, top_n: int = 20) -> pd.DataFrame:
+        """
+        Группировка вакансий по станциям метро.
+
+        Args:
+            top_n: Количество топовых станций
+
+        Returns:
+            DataFrame со станциями метро и количеством вакансий
+        """
         pass
 
 

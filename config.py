@@ -3,23 +3,23 @@
 Централизованное хранение всех настроек.
 """
 
-from typing import List
+from typing import List, Optional
 
 
 class Config:
     """Класс конфигурации приложения."""
 
     # Режим работы: 'single' или 'batch'
-    MODE = 'batch'
+    MODE: str = 'single'
 
     # Режим парсинга: 'sync' или 'async'
-    PARSING_MODE = 'async'
+    PARSING_MODE: str = 'async'
 
     # Параметры для режима 'single'
-    SINGLE_QUERY = 'Python разработчик'
+    SINGLE_QUERY: str = 'Python разработчик'
 
     # Параметры для режима 'batch'
-    BATCH_QUERIES = [
+    BATCH_QUERIES: List[str] = [
         'Python разработчик',
         'Data Scientist',
         'Machine Learning Engineer',
@@ -27,45 +27,80 @@ class Config:
     ]
 
     # Общие параметры поиска
-    AREA = 1  # 1 - Москва, 2 - СПб, 113 - Россия
-    MAX_VACANCIES = 10
-    MAX_CONCURRENT = 1  # Для асинхронного режима
+    AREA: int = 1  # 1 - Москва, 2 - СПб, 113 - Россия
+
+    # ========== НОВЫЕ НАСТРОЙКИ ЛИМИТОВ ==========
+
+    # Максимальное количество вакансий для обработки (по умолчанию 1000)
+    # Если None - берутся все найденные вакансии
+    MAX_VACANCIES_LIMIT: Optional[int] = 100
+
+    # Собирать ВСЕ доступные вакансии (игнорирует MAX_VACANCIES_LIMIT)
+    # ВНИМАНИЕ: может занять много времени при большом количестве вакансий
+    COLLECT_ALL_VACANCIES: bool = False
+
+    # Максимальное количество страниц для парсинга (HH.ru ограничение - 20 страниц)
+    # При per_page=100 это дает максимум 2000 вакансий
+    MAX_PAGES_LIMIT: int = 20
+
+    # ============================================
+
+    MAX_CONCURRENT: int = 1  # Для асинхронного режима
 
     # Параметры вывода
-    OUTPUT_DIR = './result'
-    SHOW_PLOTS = True
+    OUTPUT_DIR: str = './result'
+    SHOW_PLOTS: bool = True
 
     # Ключевые слова для анализа требований
     TECH_KEYWORDS: List[str] = [
         # Языки программирования
         'Python', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Golang',
-        'C++', 'C#', 'SQL',
+        'C++', 'C#', 'SQL', 'PHP', 'Ruby', 'Rust', 'Kotlin', 'Swift',
+
         # Python фреймворки
         'Django', 'Flask', 'FastAPI', 'Tornado', 'Aiohttp', 'Pyramid',
+        'Sanic', 'Bottle', 'CherryPy',
+
         # Базы данных
         'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch',
-        'ClickHouse', 'SQLAlchemy', 'Alembic',
+        'ClickHouse', 'SQLAlchemy', 'Alembic', 'Oracle', 'MS SQL',
+        'Cassandra', 'DynamoDB', 'Neo4j',
+
         # Очереди сообщений
-        'RabbitMQ', 'Kafka', 'Celery',
+        'RabbitMQ', 'Kafka', 'Celery', 'Redis Queue', 'SQS',
+
         # DevOps
         'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI',
-        'GitHub Actions', 'Terraform', 'Ansible', 'Linux',
+        'GitHub Actions', 'Terraform', 'Ansible', 'Linux', 'Helm',
+        'Prometheus', 'Grafana', 'ELK', 'Nagios',
+
         # Облачные платформы
         'AWS', 'Azure', 'Google Cloud', 'GCP', 'Yandex Cloud',
+        'DigitalOcean', 'Heroku',
+
         # API
         'REST API', 'GraphQL', 'gRPC', 'WebSocket', 'Microservices',
+        'SOAP', 'OpenAPI', 'Swagger',
+
         # Тестирование
-        'Pytest', 'Unittest', 'TDD',
+        'Pytest', 'Unittest', 'TDD', 'BDD', 'Selenium', 'Postman',
+
         # Frontend
         'React', 'Vue', 'Angular', 'Node.js', 'HTML', 'CSS',
+        'TypeScript', 'Webpack', 'Redux', 'Next.js',
+
         # Методологии
-        'Agile', 'Scrum', 'Kanban', 'Git',
+        'Agile', 'Scrum', 'Kanban', 'Git', 'Jira', 'Confluence',
+
         # ML/DS
         'Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch',
-        'Machine Learning', 'Deep Learning', 'Data Science',
+        'Keras', 'Machine Learning', 'Deep Learning', 'Data Science',
+        'NLP', 'Computer Vision', 'MLOps', 'Jupyter',
+
         # Языки
-        'Английский', 'English', 'Английский язык',
+        'Английский', 'English', 'Английский язык', 'B2', 'C1',
+
         # Другое
         'Asyncio', 'Scrapy', 'BeautifulSoup', 'Selenium',
-        'Nginx', 'Gunicorn', 'Uvicorn'
+        'Nginx', 'Gunicorn', 'Uvicorn', 'Apache', 'Airflow'
     ]
