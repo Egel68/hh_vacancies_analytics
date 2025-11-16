@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import pandas as pd
 
+from config import Config  # ← ПЕРЕНЕСЕН В НАЧАЛО
 from core.interfaces import (
     IVacancySearcher,
     IVacancyDetailsFetcher,
@@ -162,7 +163,7 @@ class VacancyPipeline:
         if len(metro_df) > 0 and metro_df.iloc[0]['Станция метро'] != 'Нет данных':
             self.csv_saver.save(metro_df, str(output_dir / 'metro.csv'))
 
-        # ========== НОВАЯ ФУНКЦИОНАЛЬНОСТЬ: ОБРАБОТКА ОПИСАНИЙ ==========
+        # ========== ОБРАБОТКА ОПИСАНИЙ ==========
 
         description_processor = None
 
@@ -173,7 +174,7 @@ class VacancyPipeline:
                 tech_keywords
             )
 
-        # ============================================================
+        # =========================================
 
         # 12. Визуализация
         self.visualizer.visualize(analyzer, str(output_dir), show_plots)
@@ -199,7 +200,7 @@ class VacancyPipeline:
             'Папка': str(output_dir)
         }
 
-        # Добавление статистики по описаниям, если обрабатывались
+        # Добавление статистики по описаниям
         if description_processor:
             desc_stats = description_processor.get_statistics()
             summary.update({
@@ -218,46 +219,55 @@ class VacancyPipeline:
             output_dir: Path,
             tech_keywords: Optional[List[str]] = None
     ) -> IDescriptionProcessor:
-        """Обработка описаний вакансий."""
+        """
+        Обработка описаний вакансий для извлечения требований и обязанностей.
+
+        Args:
+            detailed_vacancies: Список детальной информации о вакансиях
+            output_dir: Директория для сохранения результатов
+            tech_keywords: Ключевые слова для анализа требований
+
+        Returns:
+            Процессор описаний вакансий
+        """
         print(f"\n📝 Обработка описаний вакансий...")
 
-        # Создание компонентов с настройками из Config
-        from config import Config
-
+        # Создание компонентов
         text_cleaner = HtmlTextCleaner(preserve_structure=True)
 
         # Выбор экстрактора требований
         if tech_keywords:
             requirements_extractor = SkillsBasedRequirementsExtractor(
                 tech_keywords=tech_keywords,
-                min_length=Config.EXTRACTION_MIN_LENGTH,
-                max_length=Config.EXTRACTION_MAX_LENGTH,
-                min_words=Config.EXTRACTION_MIN_WORDS,
+                min_length=Config.REQ_MIN_LENGTH,
+                max_length=Config.REQ_MAX_LENGTH,
+                min_words=Config.REQ_MIN_WORDS,
                 similarity_threshold=Config.SIMILARITY_THRESHOLD
             )
         else:
             requirements_extractor = RequirementsExtractor(
-                min_length=Config.EXTRACTION_MIN_LENGTH,
-                max_length=Config.EXTRACTION_MAX_LENGTH,
-                min_words=Config.EXTRACTION_MIN_WORDS,
+                min_length=Config.REQ_MIN_LENGTH,
+                max_length=Config.REQ_MAX_LENGTH,
+                min_words=Config.REQ_MIN_WORDS,
                 similarity_threshold=Config.SIMILARITY_THRESHOLD
             )
 
+        # ========== ИСПРАВЛЕНО: используем параметры из Config ==========
         responsibilities_extractor = ResponsibilitiesExtractor(
-            min_length=20,
-            max_length=350,
-            min_words=4,
+            min_length=Config.RESP_MIN_LENGTH,
+            max_length=Config.RESP_MAX_LENGTH,
+            min_words=Config.RESP_MIN_WORDS,
             similarity_threshold=Config.SIMILARITY_THRESHOLD
         )
+        # ================================================================
 
-        # ========== НОВОЕ: создание процессора с классификатором ==========
+        # Создание процессора с классификатором
         processor = VacancyDescriptionProcessor(
             text_cleaner=text_cleaner,
             requirements_extractor=requirements_extractor,
             responsibilities_extractor=responsibilities_extractor,
-            use_classifier=Config.USE_CLASSIFIER  # НОВЫЙ ПАРАМЕТР
+            use_classifier=Config.USE_CLASSIFIER
         )
-        # ==================================================================
 
         # Обработка вакансий
         df = processor.process_vacancies(detailed_vacancies)
@@ -312,5 +322,71 @@ class VacancyPipeline:
         print(f"\n📊 Статистика обработки:")
         print(f"   Вакансий обработано: {stats.get('total_vacancies_processed', 0)}")
         print(f"   Классификатор использован: {'ДА' if stats.get('classifier_used') else 'НЕТ'}")
+        print(f"   Требований извлечено: {stats.get('total_requirements_extracted', 0)}")
+        print(f"   Обязанностей извлечено: {stats.get('total_responsibilities_extracted', 0)}")
 
         return processor
+
+    def process_batch_queries(
+            self,
+            queries: List[str],
+            area: int = 1,
+            max_vacancies: Optional[int] = 1000,
+            max_pages: int = 20,
+            show_plots: bool = False,
+            tech_keywords: Optional[List[str]] = None,
+            process_descriptions: bool = True
+    ) -> pd.DataFrame:
+        """
+        Обработка нескольких запросов.
+
+        Args:
+            queries: Список названий должностей
+            area: Код региона
+            max_vacancies: Максимальное количество вакансий (None = все)
+            max_pages: Максимальное количество страниц для парсинга
+            show_plots: Показывать ли графики
+            tech_keywords: Ключевые слова для анализа требований
+            process_descriptions: Обрабатывать ли описания для извлечения требований/задач
+
+        Returns:
+            DataFrame со сводной статистикой по всем запросам
+        """
+        print(f"\n{'=' * 60}")
+        print(f"🔄 Batch-анализ: {len(queries)} запросов")
+        print(f"{'=' * 60}")
+
+        summaries = []
+
+        for i, query in enumerate(queries, 1):
+            print(f"\n[{i}/{len(queries)}] Обработка: {query}")
+
+            summary = self.process_single_query(
+                query=query,
+                area=area,
+                max_vacancies=max_vacancies,
+                max_pages=max_pages,
+                show_plots=show_plots,
+                tech_keywords=tech_keywords,
+                process_descriptions=process_descriptions
+            )
+
+            if summary:
+                summaries.append(summary)
+
+        # Создание сводного отчета
+        if summaries:
+            summary_df = pd.DataFrame(summaries)
+            summary_path = self.output_dir / 'batch_summary.csv'
+            self.csv_saver.save(summary_df, str(summary_path))
+
+            print(f"\n{'=' * 60}")
+            print(f"✅ Batch-анализ завершен")
+            print(f"📊 Обработано запросов: {len(summaries)}/{len(queries)}")
+            print(f"📁 Сводный отчет: {summary_path}")
+            print(f"{'=' * 60}\n")
+
+            return summary_df
+        else:
+            print(f"\n❌ Не удалось обработать ни один запрос")
+            return pd.DataFrame()

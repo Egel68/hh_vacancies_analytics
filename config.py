@@ -92,17 +92,24 @@ class Config:
         'Английский', 'English', 'Английский язык',
     ]
 
-    # ========== ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ (ОБНОВЛЕНО) ==========
+    # ========== ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ ТРЕБОВАНИЙ ==========
 
-    # Минимальная/максимальная длина требования
-    EXTRACTION_MIN_LENGTH: int = 20  # Увеличено с 15
-    EXTRACTION_MAX_LENGTH: int = 280  # Уменьшено с 300
+    # Параметры для RequirementsExtractor
+    REQ_MIN_LENGTH: int = 20
+    REQ_MAX_LENGTH: int = 280
+    REQ_MIN_WORDS: int = 3
 
-    # Минимум слов в требовании
-    EXTRACTION_MIN_WORDS: int = 3  # Увеличено с 3
+    # ========== ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ ОБЯЗАННОСТЕЙ ==========
+
+    # Параметры для ResponsibilitiesExtractor
+    RESP_MIN_LENGTH: int = 20
+    RESP_MAX_LENGTH: int = 350
+    RESP_MIN_WORDS: int = 4
+
+    # ========== ОБЩИЕ ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ ==========
 
     # Порог схожести для дедупликации (0-1)
-    SIMILARITY_THRESHOLD: float = 0.80  # Уменьшено с 0.85 для лучшей дедупликации
+    SIMILARITY_THRESHOLD: float = 0.80
 
     # Использовать классификатор для разделения требований и обязанностей
     USE_CLASSIFIER: bool = True
