@@ -37,11 +37,22 @@ class VacancyAnalyzer(IVacancyAnalyzer):
             experience = vac.get('experience', {})
             schedule = vac.get('schedule', {})
             employer = vac.get('employer', {})
+            address = vac.get('address', {})
+
+            # Извлечение станций метро
+            metro_stations = []
+            if address and address.get('metro'):
+                metro = address.get('metro', {})
+                if isinstance(metro, dict):
+                    metro_stations.append(metro.get('station_name', ''))
+                elif isinstance(metro, list):
+                    metro_stations = [m.get('station_name', '') for m in metro if m.get('station_name')]
 
             item = {
                 'id': vac.get('id'),
                 'name': vac.get('name'),
                 'company': employer.get('name'),
+                'company_url': employer.get('alternate_url'),
                 'salary_from': salary.get('from') if salary else None,
                 'salary_to': salary.get('to') if salary else None,
                 'currency': salary.get('currency') if salary else None,
@@ -49,7 +60,10 @@ class VacancyAnalyzer(IVacancyAnalyzer):
                 'schedule': schedule.get('name'),
                 'description': vac.get('description', ''),
                 'key_skills': [skill['name'] for skill in vac.get('key_skills', [])],
-                'url': vac.get('alternate_url')
+                'url': vac.get('alternate_url'),
+                'area': vac.get('area', {}).get('name'),
+                'metro_stations': metro_stations,
+                'employment': vac.get('employment', {}).get('name'),
             }
             data.append(item)
 
@@ -132,12 +146,121 @@ class VacancyAnalyzer(IVacancyAnalyzer):
 
         return stats
 
+    # ========== НОВЫЕ МЕТОДЫ ГРУППИРОВКИ ==========
+
+    def analyze_by_company(self, top_n: int = 20) -> pd.DataFrame:
+        """
+        Группировка вакансий по компаниям.
+
+        Args:
+            top_n: Количество топовых компаний
+
+        Returns:
+            DataFrame с компаниями и количеством вакансий
+        """
+        if self.df is None:
+            self.extract_data()
+
+        # Подсчет вакансий по компаниям
+        company_counts = self.df['company'].value_counts().reset_index()
+        company_counts.columns = ['Компания', 'Количество вакансий']
+
+        # Добавление процента
+        total_vacancies = len(self.df)
+        company_counts['Процент'] = (
+                company_counts['Количество вакансий'] / total_vacancies * 100
+        ).round(2)
+
+        # Ограничение топ-N
+        return company_counts.head(top_n)
+
+    def analyze_by_schedule(self) -> pd.DataFrame:
+        """
+        Группировка вакансий по формату работы.
+
+        Returns:
+            DataFrame с форматами работы и их количеством
+        """
+        if self.df is None:
+            self.extract_data()
+
+        # Подсчет по графику работы
+        schedule_counts = self.df['schedule'].fillna('Не указано').value_counts().reset_index()
+        schedule_counts.columns = ['Формат работы', 'Количество']
+
+        # Добавление процента
+        total = len(self.df)
+        schedule_counts['Процент'] = (
+                schedule_counts['Количество'] / total * 100
+        ).round(2)
+
+        # Переименование для читаемости
+        schedule_mapping = {
+            'fullDay': 'Полный день',
+            'remote': 'Удаленная работа',
+            'flexible': 'Гибкий график',
+            'shift': 'Сменный график',
+            'flyInFlyOut': 'Вахтовый метод',
+        }
+
+        schedule_counts['Формат работы'] = schedule_counts['Формат работы'].replace(schedule_mapping)
+
+        return schedule_counts
+
+    def analyze_by_metro(self, top_n: int = 20) -> pd.DataFrame:
+        """
+        Группировка вакансий по станциям метро.
+
+        Args:
+            top_n: Количество топовых станций
+
+        Returns:
+            DataFrame со станциями метро и количеством вакансий
+        """
+        if self.df is None:
+            self.extract_data()
+
+        # Собираем все станции метро
+        all_metro_stations = []
+        for stations in self.df['metro_stations']:
+            if stations:
+                all_metro_stations.extend(stations)
+
+        if not all_metro_stations:
+            return pd.DataFrame({
+                'Станция метро': ['Нет данных'],
+                'Количество': [0],
+                'Процент': [0.0]
+            })
+
+        # Подсчет
+        metro_counts = Counter(all_metro_stations)
+        metro_df = pd.DataFrame(
+            metro_counts.most_common(top_n),
+            columns=['Станция метро', 'Количество']
+        )
+
+        # Процент от вакансий с указанным метро
+        vacancies_with_metro = sum(1 for stations in self.df['metro_stations'] if stations)
+
+        if vacancies_with_metro > 0:
+            metro_df['Процент'] = (
+                    metro_df['Количество'] / vacancies_with_metro * 100
+            ).round(2)
+
+        return metro_df
+
+    # ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
+
     def _extract_keywords_from_text(
             self,
             text: str,
             keywords_list: List[str]
     ) -> List[str]:
         """Извлечение ключевых слов из текста."""
+        if not text:
+            return []
+
         text_lower = text.lower()
         found_keywords = []
 
