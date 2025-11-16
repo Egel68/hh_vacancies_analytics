@@ -38,6 +38,7 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'от кандидата:?',
         r'для нас важно:?',
         r'что ждем:?',
+        r'ждем от вас:?',
     ]
 
     # Паттерны-маркеры требований
@@ -59,11 +60,14 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'умеет',
         r'знает',
         r'имеет опыт',
+        r'имеешь',
         r'понимает',
         r'образование',
         r'высшее',
         r'уверенное',
         r'глубокое',
+        r'базовое понимание',
+        r'релевантный опыт',
     ]
 
     # РАСШИРЕННЫЕ стоп-секции
@@ -93,10 +97,23 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'наши преимущества:?',
         r'почему мы:?',
         r'присоединяйтесь:?',
+        r'обязанности:?',
+        r'задачи:?',
+        r'responsibilities:?',
+        r'вам предстоит:?',
+        r'чем заниматься:?',
     ]
 
     # РАСШИРЕННЫЕ стоп-фразы
     NOISE_PHRASES = [
+        # Информация о компании
+        r'^за\s+\d+\s+(?:лет|года|год)',
+        r'^мы помогли',
+        r'помогли\s+\d+\+?\s*компани',
+        r'внедрить\s+системное\s+управление',
+        r'повысить\s+эффективность',
+        r'сократить\s+затраты',
+
         # Что предлагает компания
         r'^мы предлагаем',
         r'^что мы предлагаем',
@@ -108,7 +125,7 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'^график',
         r'^зарплата',
         r'^з/?п',
-        r'^\d+/\d+',  # 5/2
+        r'^\d+/\d+',
         r'^офис',
         r'^локация',
         r'^дмс',
@@ -117,18 +134,22 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'тимбилдинг',
         r'бесплатн[ыо][йе]',
         r'компенсаци[яю]',
+        r'^максимальное влияние',
+        r'^стабильная зарплата',
+        r'^адекватное',
 
         # О компании
         r'^о компании',
         r'^наша компания',
         r'^наша цель',
         r'^мы (?:являемся|занимаемся|создаем)',
+        r'^компания (?:специализируется|работает)',
 
         # Призывы
         r'^если вы хотите',
         r'^если (?:тебе|вам) важно',
         r'^будем рады',
-        r'^ждем',
+        r'^ждем (?:вас|тебя)',
         r'^присоединяйтесь',
 
         # Маркетинг и преимущества
@@ -142,6 +163,21 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'^конкурентн[аы][яй] зарплат',
         r'^комфортн[аы][яй]',
         r'^дружн[аы][яй] команд',
+        r'^работа в постоянно развивающейся',
+
+        # Слишком общие фразы
+        r'^мы рассматриваем кандидатов',
+        r'^идеальный кандидат',
+        r'^вы нам подходите',
+        r'^наш идеальный',
+
+        # Обязанности, попавшие в требования
+        r'^сбор обратной связи',
+        r'^проверка реализованного',
+        r'^взаимодействие с командой',
+        r'^описание и анализ бизнес-процессов',
+        r'^разработка и актуализация',
+        r'^ведение базы знаний',
 
         # Эмодзи
         r'📩|📧|✉️|💼|🎯|🚀|⭐|✨|🔍|📊|📈|💰|🏆',
@@ -150,7 +186,7 @@ class RequirementsExtractor(ITextSectionExtractor):
     def __init__(
             self,
             min_length: int = 15,
-            max_length: int = 300,
+            max_length: int = 400,
             min_words: int = 3,
             similarity_threshold: float = 0.85
     ):
@@ -236,7 +272,9 @@ class RequirementsExtractor(ITextSectionExtractor):
             r'benefits|'
             r'о компании|'
             r'требования|'
-            r'requirements'
+            r'requirements|'
+            r'вам предстоит|'
+            r'чем заниматься'
             r'):',
             re.IGNORECASE | re.UNICODE
         )
@@ -251,7 +289,7 @@ class RequirementsExtractor(ITextSectionExtractor):
     def _extract_by_markers(self, text: str) -> List[str]:
         """Извлечение требований по ключевым маркерам."""
         requirements = []
-        sentences = re.split(r'[.!?]\s+', text)
+        sentences = re.split(r'[.;!?]\s+', text)
 
         for sentence in sentences:
             if self.marker_pattern.search(sentence):
@@ -324,6 +362,9 @@ class RequirementsExtractor(ITextSectionExtractor):
         # Удаление лишних пробелов
         text = ' '.join(text.split())
 
+        # Удаление точки с запятой в конце
+        text = text.rstrip(';').rstrip('.')
+
         return text.strip()
 
     def _is_valid_requirement(self, text: str) -> bool:
@@ -357,11 +398,30 @@ class RequirementsExtractor(ITextSectionExtractor):
             'мы рассматриваем кандидатов',
             'идеальный кандидат',
             'вы нам подходите',
+            'наш идеальный кандидат',
         ]
 
         text_lower = text.lower()
         for phrase in generic_phrases:
-            if phrase in text_lower and len(text) < 100:
+            if phrase in text_lower:
+                return False
+
+        # Исключение явных обязанностей
+        responsibility_starts = [
+            'сбор обратной связи',
+            'проверка реализованного',
+            'взаимодействие с командой',
+            'описание и анализ',
+            'разработка и актуализация',
+            'ведение базы',
+            'участие в разработке',
+            'анализ коммерческих данных',
+            'подготовка предложений',
+            'формирование и корректировка',
+        ]
+
+        for start in responsibility_starts:
+            if text_lower.startswith(start):
                 return False
 
         return True
@@ -374,8 +434,15 @@ class RequirementsExtractor(ITextSectionExtractor):
         cleaned = [req for req in requirements if self._is_valid_requirement(req)]
 
         unique_requirements = []
+        seen_normalized = set()
 
         for req in cleaned:
+            # Нормализация для сравнения
+            normalized = self._normalize_for_comparison(req)
+
+            if normalized in seen_normalized:
+                continue
+
             is_duplicate = False
 
             for existing in unique_requirements:
@@ -387,13 +454,27 @@ class RequirementsExtractor(ITextSectionExtractor):
 
             if not is_duplicate:
                 unique_requirements.append(req)
+                seen_normalized.add(normalized)
 
         return unique_requirements
 
+    def _normalize_for_comparison(self, text: str) -> str:
+        """Нормализация текста для сравнения."""
+        # Приведение к нижнему регистру
+        text = text.lower()
+
+        # Удаление знаков препинания в конце
+        text = text.rstrip('.;,')
+
+        # Нормализация пробелов
+        text = ' '.join(text.split())
+
+        return text
+
     def _calculate_similarity(self, text1: str, text2: str) -> float:
         """Вычисление схожести двух строк."""
-        norm1 = ' '.join(text1.lower().split())
-        norm2 = ' '.join(text2.lower().split())
+        norm1 = self._normalize_for_comparison(text1)
+        norm2 = self._normalize_for_comparison(text2)
 
         return SequenceMatcher(None, norm1, norm2).ratio()
 
@@ -405,7 +486,7 @@ class SkillsBasedRequirementsExtractor(RequirementsExtractor):
             self,
             tech_keywords: List[str],
             min_length: int = 15,
-            max_length: int = 300,
+            max_length: int = 400,
             min_words: int = 3,
             similarity_threshold: float = 0.85
     ):
