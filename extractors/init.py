@@ -7,9 +7,12 @@ from extractors.requirements_extractor import (
     SkillsBasedRequirementsExtractor
 )
 from extractors.responsibilities_extractor import ResponsibilitiesExtractor
+from extractors.item_classifier import VacancyItemClassifier, ItemType
 
 __all__ = [
     'RequirementsExtractor',
     'SkillsBasedRequirementsExtractor',
-    'ResponsibilitiesExtractor'
+    'ResponsibilitiesExtractor',
+    'VacancyItemClassifier',
+    'ItemType'
 ]

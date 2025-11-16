@@ -1,6 +1,6 @@
 """
 Модуль извлечения обязанностей и задач из описания вакансии.
-Улучшенная версия с фильтрацией шума.
+УЛУЧШЕННАЯ ВЕРСИЯ с расширенной фильтрацией шума.
 """
 
 import re
@@ -32,44 +32,32 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         r'основные задачи:?',
         r'чем заниматься:?',
         r'чем предстоит:?',
+        r'примеры задач:?',
     ]
 
     # Паттерны-маркеры задач
     TASK_MARKERS = [
-        r'разработка',
-        r'разработать',
-        r'проектирование',
-        r'проектировать',
-        r'внедрение',
-        r'внедрить',
-        r'поддержка',
-        r'поддерживать',
-        r'оптимизация',
-        r'оптимизировать',
-        r'участие в',
-        r'работа с',
-        r'взаимодействие',
-        r'создание',
-        r'создавать',
-        r'develop',
-        r'implement',
-        r'maintain',
-        r'design',
-        r'collaborate',
-        r'build',
-        r'create',
-        r'support',
-        r'анализ',
-        r'анализировать',
-        r'сбор',
-        r'собирать',
-        r'формирование',
-        r'формировать',
-        r'тестирование',
-        r'тестировать',
+        r'\b(?:разработка|разработать|develop)',
+        r'\b(?:проектирование|проектировать|design)',
+        r'\b(?:внедрение|внедрить|implement)',
+        r'\b(?:поддержка|поддерживать|maintain)',
+        r'\b(?:оптимизация|оптимизировать|optimize)',
+        r'\b(?:участие в|participation)',
+        r'\b(?:работа с|working with)',
+        r'\b(?:взаимодействие|collaborate)',
+        r'\b(?:создание|создавать|create)',
+        r'\b(?:анализ|анализировать|analyze)',
+        r'\b(?:сбор|собирать|collect)',
+        r'\b(?:формирование|формировать)',
+        r'\b(?:тестирование|тестировать)',
+        r'\b(?:настройка|настраивать)',
+        r'\b(?:интеграция|интегрировать)',
+        r'\b(?:обеспечить|обеспечивать)',
+        r'\b(?:описание|описывать)',
+        r'\b(?:автоматизация|автоматизировать)',
     ]
 
-    # Стоп-секции (как в RequirementsExtractor)
+    # РАСШИРЕННЫЕ стоп-секции
     STOP_SECTION_HEADERS = [
         r'(?:что )?мы предлагаем:?',
         r'условия работы?:?',
@@ -84,11 +72,15 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         r'корпоративная жизнь:?',
         r'график работы:?',
         r'формат работы:?',
+        r'наши преимущества:?',
+        r'почему мы:?',
     ]
 
-    # Стоп-фразы
+    # РАСШИРЕННЫЕ стоп-фразы
     NOISE_PHRASES = [
+        # Что предлагает компания
         r'^мы предлагаем',
+        r'^что мы предлагаем',
         r'^условия',
         r'^оформление',
         r'^удал[её]нн?ый формат',
@@ -100,6 +92,37 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         r'^дмс',
         r'корпоратив',
         r'тимбилдинг',
+
+        # О компании и маркетинг
+        r'^наша цель',
+        r'^мы (?:являемся|занимаемся|создаем)',
+        r'^компания (?:специализируется|работает)',
+        r'^если вы хотите',
+        r'^будем рады',
+        r'^ждем (?:вас|тебя)',
+        r'^присоединяйтесь',
+
+        # Преимущества и бенефиты
+        r'^уникальн[аы][яй] экспертиз',
+        r'^профессиональный рост',
+        r'^карьерный рост',
+        r'^возможность (?:развития|роста|обучения)',
+        r'^наставничество',
+        r'^обучение (?:внутри|за счет)',
+        r'^конкурентн[аы][яй] зарплат',
+        r'^комфортн[аы][яй]',
+        r'^гибкий график',
+        r'^удаленн[аы][яй] работ',
+
+        # Общие фразы
+        r'^отличн',
+        r'^прекрасн',
+        r'^индивидуальная программа',
+        r'^бонусы',
+        r'^компенсация',
+
+        # Эмодзи
+        r'📩|📧|✉️|💼|🎯|🚀|⭐|✨|🔍|📊|📈|💰|🏆',
     ]
 
     def __init__(
@@ -120,19 +143,19 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         """Компиляция регулярных выражений."""
         self.header_pattern = re.compile(
             r'(?:^|\n)\s*(?:' + '|'.join(self.RESPONSIBILITY_HEADERS) + r')\s*(?:\n|$)',
-            re.IGNORECASE | re.MULTILINE
+            re.IGNORECASE | re.MULTILINE | re.UNICODE
         )
         self.marker_pattern = re.compile(
-            r'\b(?:' + '|'.join(self.TASK_MARKERS) + r')',
-            re.IGNORECASE
+            r'(?:' + '|'.join(self.TASK_MARKERS) + r')',
+            re.IGNORECASE | re.UNICODE
         )
         self.stop_section_pattern = re.compile(
             r'(?:^|\n)\s*(?:' + '|'.join(self.STOP_SECTION_HEADERS) + r')',
-            re.IGNORECASE | re.MULTILINE
+            re.IGNORECASE | re.MULTILINE | re.UNICODE
         )
         self.noise_pattern = re.compile(
             '|'.join(self.NOISE_PHRASES),
-            re.IGNORECASE
+            re.IGNORECASE | re.UNICODE
         )
 
     def extract(self, text: str) -> List[str]:
@@ -142,7 +165,6 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
 
         responsibilities = []
 
-        # Три метода извлечения
         section_resp = self._extract_from_sections(text)
         responsibilities.extend(section_resp)
 
@@ -152,7 +174,6 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         list_resp = self._extract_from_lists(text)
         responsibilities.extend(list_resp)
 
-        # Улучшенная очистка
         responsibilities = self._advanced_clean_and_deduplicate(responsibilities)
 
         return responsibilities
@@ -170,7 +191,6 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
 
             section_text = text[section_start:section_end]
 
-            # Проверка на стоп-секцию
             if not self.stop_section_pattern.search(match.group()):
                 items = self._split_into_items(section_text)
                 responsibilities.extend(items)
@@ -190,7 +210,7 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
             r'обязанности|'
             r'задачи'
             r'):',
-            re.IGNORECASE
+            re.IGNORECASE | re.UNICODE
         )
 
         match = next_headers_pattern.search(text[start_pos:])
@@ -251,7 +271,6 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
                 new_items.extend(item.split(sep))
             current_items = new_items
 
-        # Разбиение по точке
         final_items = []
         for item in current_items:
             parts = re.split(r'\.\s+(?=[А-ЯA-ZЁ])', item)
@@ -267,8 +286,15 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
 
     def _clean_item(self, text: str) -> str:
         """Очистка элемента."""
+        # Удаление эмодзи
+        text = re.sub(r'[\U0001F300-\U0001F9FF]', '', text)
+
+        # Удаление маркеров списков
         text = re.sub(r'^[-•*\d+\.)]\s*', '', text)
+
+        # Нормализация пробелов
         text = ' '.join(text.split())
+
         return text.strip()
 
     def _is_valid_responsibility(self, text: str) -> bool:

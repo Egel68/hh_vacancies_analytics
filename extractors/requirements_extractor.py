@@ -1,10 +1,10 @@
 """
 Модуль извлечения требований к кандидату из текста описания.
-Улучшенная версия с фильтрацией шума и умной дедупликацией.
+УЛУЧШЕННАЯ ВЕРСИЯ с расширенной фильтрацией шума.
 """
 
 import re
-from typing import List, Set, Dict
+from typing import List
 from difflib import SequenceMatcher
 from core.interfaces import ITextSectionExtractor
 
@@ -36,12 +36,14 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'кого ищем:?',
         r'наши ожидания:?',
         r'от кандидата:?',
+        r'для нас важно:?',
+        r'что ждем:?',
     ]
 
     # Паттерны-маркеры требований
     REQUIREMENT_MARKERS = [
         r'опыт работы',
-        r'опыт.*?(?:от|не менее|более)',
+        r'опыт.*?(?:от|не менее|более|\d+)',
         r'знание',
         r'знания',
         r'владение',
@@ -58,9 +60,13 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'знает',
         r'имеет опыт',
         r'понимает',
+        r'образование',
+        r'высшее',
+        r'уверенное',
+        r'глубокое',
     ]
 
-    # НОВОЕ: Стоп-паттерны для исключения нерелевантных секций
+    # РАСШИРЕННЫЕ стоп-секции
     STOP_SECTION_HEADERS = [
         r'(?:что )?мы предлагаем:?',
         r'условия работы?:?',
@@ -84,10 +90,14 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'соц\.?\s*пакет:?',
         r'развитие:?',
         r'обучение:?',
+        r'наши преимущества:?',
+        r'почему мы:?',
+        r'присоединяйтесь:?',
     ]
 
-    # НОВОЕ: Стоп-слова/фразы внутри требований
+    # РАСШИРЕННЫЕ стоп-фразы
     NOISE_PHRASES = [
+        # Что предлагает компания
         r'^мы предлагаем',
         r'^что мы предлагаем',
         r'^условия',
@@ -107,6 +117,34 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'тимбилдинг',
         r'бесплатн[ыо][йе]',
         r'компенсаци[яю]',
+
+        # О компании
+        r'^о компании',
+        r'^наша компания',
+        r'^наша цель',
+        r'^мы (?:являемся|занимаемся|создаем)',
+
+        # Призывы
+        r'^если вы хотите',
+        r'^если (?:тебе|вам) важно',
+        r'^будем рады',
+        r'^ждем',
+        r'^присоединяйтесь',
+
+        # Маркетинг и преимущества
+        r'^уникальн',
+        r'^отличн',
+        r'^прекрасн',
+        r'^профессиональный рост',
+        r'^карьерный рост',
+        r'^возможность (?:развития|роста)',
+        r'^перспективы',
+        r'^конкурентн[аы][яй] зарплат',
+        r'^комфортн[аы][яй]',
+        r'^дружн[аы][яй] команд',
+
+        # Эмодзи
+        r'📩|📧|✉️|💼|🎯|🚀|⭐|✨|🔍|📊|📈|💰|🏆',
     ]
 
     def __init__(
@@ -116,15 +154,7 @@ class RequirementsExtractor(ITextSectionExtractor):
             min_words: int = 3,
             similarity_threshold: float = 0.85
     ):
-        """
-        Инициализация экстрактора.
-
-        Args:
-            min_length: Минимальная длина требования (символов)
-            max_length: Максимальная длина требования (символов)
-            min_words: Минимальное количество слов
-            similarity_threshold: Порог схожести для дедупликации (0-1)
-        """
+        """Инициализация экстрактора."""
         self.min_length = min_length
         self.max_length = max_length
         self.min_words = min_words
@@ -135,19 +165,19 @@ class RequirementsExtractor(ITextSectionExtractor):
         """Компиляция регулярных выражений."""
         self.header_pattern = re.compile(
             r'(?:^|\n)\s*(?:' + '|'.join(self.REQUIREMENT_HEADERS) + r')\s*(?:\n|$)',
-            re.IGNORECASE | re.MULTILINE
+            re.IGNORECASE | re.MULTILINE | re.UNICODE
         )
         self.marker_pattern = re.compile(
             r'\b(?:' + '|'.join(self.REQUIREMENT_MARKERS) + r')',
-            re.IGNORECASE
+            re.IGNORECASE | re.UNICODE
         )
         self.stop_section_pattern = re.compile(
             r'(?:^|\n)\s*(?:' + '|'.join(self.STOP_SECTION_HEADERS) + r')',
-            re.IGNORECASE | re.MULTILINE
+            re.IGNORECASE | re.MULTILINE | re.UNICODE
         )
         self.noise_pattern = re.compile(
             '|'.join(self.NOISE_PHRASES),
-            re.IGNORECASE
+            re.IGNORECASE | re.UNICODE
         )
 
     def extract(self, text: str) -> List[str]:
@@ -169,7 +199,7 @@ class RequirementsExtractor(ITextSectionExtractor):
         list_requirements = self._extract_from_lists(text)
         requirements.extend(list_requirements)
 
-        # УЛУЧШЕННАЯ очистка и дедупликация
+        # Улучшенная очистка и дедупликация
         requirements = self._advanced_clean_and_deduplicate(requirements)
 
         return requirements
@@ -178,11 +208,8 @@ class RequirementsExtractor(ITextSectionExtractor):
         """Извлечение требований из размеченных секций."""
         requirements = []
 
-        # Поиск всех секций с требованиями
         for match in self.header_pattern.finditer(text):
             section_start = match.end()
-
-            # Поиск конца секции
             section_end = self._find_section_end(text, section_start)
 
             if section_end is None:
@@ -190,7 +217,6 @@ class RequirementsExtractor(ITextSectionExtractor):
 
             section_text = text[section_start:section_end]
 
-            # Проверка, что это не стоп-секция
             if not self.stop_section_pattern.search(match.group()):
                 items = self._split_into_items(section_text)
                 requirements.extend(items)
@@ -199,7 +225,6 @@ class RequirementsExtractor(ITextSectionExtractor):
 
     def _find_section_end(self, text: str, start_pos: int) -> int:
         """Поиск конца текущей секции."""
-        # Ищем следующий заголовок (любой)
         next_headers_pattern = re.compile(
             r'\n\s*(?:'
             r'обязанности|'
@@ -213,7 +238,7 @@ class RequirementsExtractor(ITextSectionExtractor):
             r'требования|'
             r'requirements'
             r'):',
-            re.IGNORECASE
+            re.IGNORECASE | re.UNICODE
         )
 
         match = next_headers_pattern.search(text[start_pos:])
@@ -226,16 +251,12 @@ class RequirementsExtractor(ITextSectionExtractor):
     def _extract_by_markers(self, text: str) -> List[str]:
         """Извлечение требований по ключевым маркерам."""
         requirements = []
-
-        # Разбиение на предложения
         sentences = re.split(r'[.!?]\s+', text)
 
         for sentence in sentences:
-            # Проверка наличия маркеров
             if self.marker_pattern.search(sentence):
                 cleaned = sentence.strip()
 
-                # Фильтрация
                 if self._is_valid_requirement(cleaned):
                     requirements.append(cleaned)
 
@@ -269,7 +290,6 @@ class RequirementsExtractor(ITextSectionExtractor):
         """Разбиение текста на отдельные элементы."""
         items = []
 
-        # Разбиение по разделителям
         separators = [';', '\n']
         current_items = [text]
 
@@ -279,13 +299,12 @@ class RequirementsExtractor(ITextSectionExtractor):
                 new_items.extend(item.split(sep))
             current_items = new_items
 
-        # Разбиение по точке (если после точки заглавная буква)
+        # Разбиение по точке
         final_items = []
         for item in current_items:
             parts = re.split(r'\.\s+(?=[А-ЯA-ZЁ])', item)
             final_items.extend(parts)
 
-        # Фильтрация и очистка
         for item in final_items:
             cleaned = self._clean_item(item)
 
@@ -296,6 +315,9 @@ class RequirementsExtractor(ITextSectionExtractor):
 
     def _clean_item(self, text: str) -> str:
         """Очистка отдельного элемента."""
+        # Удаление эмодзи
+        text = re.sub(r'[\U0001F300-\U0001F9FF]', '', text)
+
         # Удаление начальных маркеров
         text = re.sub(r'^[-•*\d+\.)]\s*', '', text)
 
@@ -318,7 +340,7 @@ class RequirementsExtractor(ITextSectionExtractor):
         if len(words) < self.min_words:
             return False
 
-        # Исключение заголовков (заканчиваются на ":")
+        # Исключение заголовков
         if text.strip().endswith(':'):
             return False
 
@@ -330,27 +352,32 @@ class RequirementsExtractor(ITextSectionExtractor):
         if re.match(r'^\d+[\s\-/]*\d*$', text.strip()):
             return False
 
+        # Исключение слишком общих фраз
+        generic_phrases = [
+            'мы рассматриваем кандидатов',
+            'идеальный кандидат',
+            'вы нам подходите',
+        ]
+
+        text_lower = text.lower()
+        for phrase in generic_phrases:
+            if phrase in text_lower and len(text) < 100:
+                return False
+
         return True
 
     def _advanced_clean_and_deduplicate(self, requirements: List[str]) -> List[str]:
-        """
-        Продвинутая очистка и дедупликация.
-
-        Использует нечеткое сравнение для удаления похожих элементов.
-        """
+        """Продвинутая очистка и дедупликация."""
         if not requirements:
             return []
 
-        # Предварительная очистка
         cleaned = [req for req in requirements if self._is_valid_requirement(req)]
 
-        # Нечеткая дедупликация
         unique_requirements = []
 
         for req in cleaned:
             is_duplicate = False
 
-            # Сравнение с уже добавленными
             for existing in unique_requirements:
                 similarity = self._calculate_similarity(req, existing)
 
@@ -364,8 +391,7 @@ class RequirementsExtractor(ITextSectionExtractor):
         return unique_requirements
 
     def _calculate_similarity(self, text1: str, text2: str) -> float:
-        """Вычисление схожести двух строк (0-1)."""
-        # Нормализация для сравнения
+        """Вычисление схожести двух строк."""
         norm1 = ' '.join(text1.lower().split())
         norm2 = ' '.join(text2.lower().split())
 
@@ -390,7 +416,6 @@ class SkillsBasedRequirementsExtractor(RequirementsExtractor):
         """Извлечение с приоритетом технических требований."""
         base_requirements = super().extract(text)
 
-        # Разделение на технические и общие
         tech_requirements = []
         other_requirements = []
 

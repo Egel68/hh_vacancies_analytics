@@ -16,7 +16,7 @@ class Config:
     PARSING_MODE: str = 'sync'
 
     # Параметры для режима 'single'
-    SINGLE_QUERY: str = 'Системный аналитик'
+    SINGLE_QUERY: str = 'Бизнес аналитик'
 
     # Параметры для режима 'batch'
     BATCH_QUERIES: List[str] = [
@@ -28,23 +28,16 @@ class Config:
     # Общие параметры поиска
     AREA: int = 1  # 1 - Москва, 2 - СПб, 113 - Россия
 
-    # ========== НОВЫЕ НАСТРОЙКИ ЛИМИТОВ ==========
-
-    # Максимальное количество вакансий для обработки (по умолчанию 1000)
-    # Если None - берутся все найденные вакансии
+    # Максимальное количество вакансий для обработки
     MAX_VACANCIES_LIMIT: Optional[int] = 30
 
-    # Собирать ВСЕ доступные вакансии (игнорирует MAX_VACANCIES_LIMIT)
-    # ВНИМАНИЕ: может занять много времени при большом количестве вакансий
+    # Собирать ВСЕ доступные вакансии
     COLLECT_ALL_VACANCIES: bool = False
 
-    # Максимальное количество страниц для парсинга (HH.ru ограничение - 20 страниц)
-    # При per_page=100 это дает максимум 2000 вакансий
+    # Максимальное количество страниц для парсинга
     MAX_PAGES_LIMIT: int = 20
 
-    # ============================================
-
-    MAX_CONCURRENT: int = 1  # Для асинхронного режима
+    MAX_CONCURRENT: int = 1
 
     # Параметры вывода
     OUTPUT_DIR: str = './result'
@@ -58,54 +51,58 @@ class Config:
 
         # Python фреймворки
         'Django', 'Flask', 'FastAPI', 'Tornado', 'Aiohttp', 'Pyramid',
-        'Sanic', 'Bottle', 'CherryPy',
 
         # Базы данных
         'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch',
-        'ClickHouse', 'SQLAlchemy', 'Alembic', 'Oracle', 'MS SQL',
-        'Cassandra', 'DynamoDB', 'Neo4j',
+        'ClickHouse', 'SQLAlchemy', 'Oracle', 'MS SQL',
 
         # Очереди сообщений
         'RabbitMQ', 'Kafka', 'Celery', 'Redis Queue', 'SQS',
 
         # DevOps
         'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI',
-        'GitHub Actions', 'Terraform', 'Ansible', 'Linux', 'Helm',
-        'Prometheus', 'Grafana', 'ELK', 'Nagios',
+        'GitHub Actions', 'Terraform', 'Ansible', 'Linux',
 
         # Облачные платформы
         'AWS', 'Azure', 'Google Cloud', 'GCP', 'Yandex Cloud',
-        'DigitalOcean', 'Heroku',
 
         # API
         'REST API', 'GraphQL', 'gRPC', 'WebSocket', 'Microservices',
-        'SOAP', 'OpenAPI', 'Swagger',
+        'OpenAPI', 'Swagger',
 
         # Тестирование
         'Pytest', 'Unittest', 'TDD', 'BDD', 'Selenium', 'Postman',
 
         # Frontend
         'React', 'Vue', 'Angular', 'Node.js', 'HTML', 'CSS',
-        'TypeScript', 'Webpack', 'Redux', 'Next.js',
 
         # Методологии
         'Agile', 'Scrum', 'Kanban', 'Git', 'Jira', 'Confluence',
+        'BPMN', 'UML', 'IDEF',
 
         # ML/DS
         'Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch',
-        'Keras', 'Machine Learning', 'Deep Learning', 'Data Science',
-        'NLP', 'Computer Vision', 'MLOps', 'Jupyter',
+        'Machine Learning', 'Data Science', 'NLP', 'LLM',
+
+        # Бизнес-аналитика
+        'Power BI', 'Tableau', 'Excel', 'Google Sheets',
+        'Битрикс24', 'Bitrix24', '1C', 'SAP', 'ERP', 'CRM',
 
         # Языки
-        'Английский', 'English', 'Английский язык', 'B2', 'C1',
-
-        # Другое
-        'Asyncio', 'Scrapy', 'BeautifulSoup', 'Selenium',
-        'Nginx', 'Gunicorn', 'Uvicorn', 'Apache', 'Airflow'
+        'Английский', 'English', 'Английский язык',
     ]
 
-    # Параметры извлечения требований/обязанностей
-    EXTRACTION_MIN_LENGTH: int = 15  # Минимальная длина требования
-    EXTRACTION_MAX_LENGTH: int = 300  # Максимальная длина требования
-    EXTRACTION_MIN_WORDS: int = 3  # Минимум слов
-    SIMILARITY_THRESHOLD: float = 0.85  # Порог схожести для дедупликации
+    # ========== ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ (ОБНОВЛЕНО) ==========
+
+    # Минимальная/максимальная длина требования
+    EXTRACTION_MIN_LENGTH: int = 20  # Увеличено с 15
+    EXTRACTION_MAX_LENGTH: int = 280  # Уменьшено с 300
+
+    # Минимум слов в требовании
+    EXTRACTION_MIN_WORDS: int = 3  # Увеличено с 3
+
+    # Порог схожести для дедупликации (0-1)
+    SIMILARITY_THRESHOLD: float = 0.80  # Уменьшено с 0.85 для лучшей дедупликации
+
+    # Использовать классификатор для разделения требований и обязанностей
+    USE_CLASSIFIER: bool = True

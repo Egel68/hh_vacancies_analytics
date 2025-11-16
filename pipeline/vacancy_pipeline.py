@@ -244,18 +244,20 @@ class VacancyPipeline:
             )
 
         responsibilities_extractor = ResponsibilitiesExtractor(
-            min_length=20,  # Для обязанностей чуть больше
+            min_length=20,
             max_length=350,
             min_words=4,
             similarity_threshold=Config.SIMILARITY_THRESHOLD
         )
 
-        # Создание процессора (паттерн Facade)
+        # ========== НОВОЕ: создание процессора с классификатором ==========
         processor = VacancyDescriptionProcessor(
             text_cleaner=text_cleaner,
             requirements_extractor=requirements_extractor,
-            responsibilities_extractor=responsibilities_extractor
+            responsibilities_extractor=responsibilities_extractor,
+            use_classifier=Config.USE_CLASSIFIER  # НОВЫЙ ПАРАМЕТР
         )
+        # ==================================================================
 
         # Обработка вакансий
         df = processor.process_vacancies(detailed_vacancies)
@@ -307,68 +309,8 @@ class VacancyPipeline:
             str(output_dir / 'description_processing_stats.json')
         )
         print(f"  ✅ Сохранено: description_processing_stats.json")
+        print(f"\n📊 Статистика обработки:")
+        print(f"   Вакансий обработано: {stats.get('total_vacancies_processed', 0)}")
+        print(f"   Классификатор использован: {'ДА' if stats.get('classifier_used') else 'НЕТ'}")
 
         return processor
-
-    def process_batch_queries(
-            self,
-            queries: List[str],
-            area: int = 1,
-            max_vacancies: Optional[int] = 1000,
-            max_pages: int = 20,
-            show_plots: bool = False,
-            tech_keywords: Optional[List[str]] = None,
-            process_descriptions: bool = True
-    ) -> None:
-        """
-        Пакетная обработка нескольких запросов.
-
-        Args:
-            queries: Список названий должностей
-            area: Код региона
-            max_vacancies: Максимальное количество вакансий (None = все)
-            max_pages: Максимальное количество страниц
-            show_plots: Показывать ли графики
-            tech_keywords: Ключевые слова для анализа
-            process_descriptions: Обрабатывать ли описания
-        """
-        print("=" * 60)
-        print("🔄 ПАКЕТНЫЙ АНАЛИЗ ВАКАНСИЙ")
-        print("=" * 60)
-        print(f"Должности: {', '.join(queries)}")
-        if max_vacancies:
-            print(f"Лимит вакансий: {max_vacancies}")
-        else:
-            print(f"Лимит вакансий: не установлен (собираем все)")
-        print(f"Обработка описаний: {'ДА' if process_descriptions else 'НЕТ'}")
-        print()
-
-        summary_list = []
-
-        # Обработка каждого запроса
-        for query in queries:
-            summary = self.process_single_query(
-                query=query,
-                area=area,
-                max_vacancies=max_vacancies,
-                max_pages=max_pages,
-                show_plots=show_plots,
-                tech_keywords=tech_keywords,
-                process_descriptions=process_descriptions
-            )
-
-            if summary:
-                summary_list.append(summary)
-
-        # Создание общей сводки
-        if summary_list:
-            summary_df = pd.DataFrame(summary_list)
-            summary_path = self.output_dir / 'batch_summary.csv'
-            self.csv_saver.save(summary_df, str(summary_path))
-
-            print("\n" + "=" * 60)
-            print("📋 ОБЩАЯ СВОДКА")
-            print("=" * 60)
-            print(summary_df.to_string(index=False))
-
-        print("\n✅ Пакетный анализ завершен!")

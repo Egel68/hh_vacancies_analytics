@@ -13,6 +13,7 @@ from core.interfaces import (
     ITextSectionExtractor,
     IDescriptionProcessor
 )
+from extractors.item_classifier import VacancyItemClassifier
 
 
 class VacancyDescriptionProcessor(IDescriptionProcessor):
@@ -29,7 +30,8 @@ class VacancyDescriptionProcessor(IDescriptionProcessor):
             self,
             text_cleaner: ITextCleaner,
             requirements_extractor: ITextSectionExtractor,
-            responsibilities_extractor: ITextSectionExtractor
+            responsibilities_extractor: ITextSectionExtractor,
+            use_classifier: bool = True  # НОВЫЙ ПАРАМЕТР
     ):
         """
         Инициализация процессора.
@@ -38,10 +40,15 @@ class VacancyDescriptionProcessor(IDescriptionProcessor):
             text_cleaner: Компонент очистки текста от HTML
             requirements_extractor: Экстрактор требований
             responsibilities_extractor: Экстрактор обязанностей
+            use_classifier: Использовать ли классификатор для разделения
         """
         self.text_cleaner = text_cleaner
         self.requirements_extractor = requirements_extractor
         self.responsibilities_extractor = responsibilities_extractor
+        self.use_classifier = use_classifier
+
+        # Классификатор для разделения смешанных данных
+        self.classifier = VacancyItemClassifier() if use_classifier else None
 
         # Хранение результатов обработки
         self.processed_data: List[Dict] = []
@@ -110,15 +117,37 @@ class VacancyDescriptionProcessor(IDescriptionProcessor):
         # Шаг 3: Извлечение обязанностей
         responsibilities = self.responsibilities_extractor.extract(clean_text)
 
+        # ========== НОВАЯ ЛОГИКА: КЛАССИФИКАЦИЯ СМЕШАННЫХ ДАННЫХ ==========
+
+        if self.use_classifier and self.classifier:
+            # Разделение требований (могут содержать обязанности)
+            req_filtered, req_misclassified = self.classifier.separate_mixed_items(
+                requirements
+            )
+
+            # Разделение обязанностей (могут содержать требования)
+            resp_misclassified, resp_filtered = self.classifier.separate_mixed_items(
+                responsibilities
+            )
+
+            # Объединение с учетом переклассификации
+            final_requirements = list(set(req_filtered + resp_misclassified))
+            final_responsibilities = list(set(resp_filtered + req_misclassified))
+        else:
+            final_requirements = requirements
+            final_responsibilities = responsibilities
+
+        # ===================================================================
+
         return {
             'vacancy_id': vacancy.get('id'),
             'vacancy_name': vacancy.get('name'),
             'company': vacancy.get('employer', {}).get('name') if vacancy.get('employer') else None,
             'clean_description': clean_text,
-            'requirements': requirements,
-            'responsibilities': responsibilities,
-            'requirements_count': len(requirements),
-            'responsibilities_count': len(responsibilities),
+            'requirements': final_requirements,
+            'responsibilities': final_responsibilities,
+            'requirements_count': len(final_requirements),
+            'responsibilities_count': len(final_responsibilities),
         }
 
     def _create_dataframe(self) -> pd.DataFrame:
@@ -162,7 +191,7 @@ class VacancyDescriptionProcessor(IDescriptionProcessor):
         total_vacancies = len(self.processed_data)
 
         freq_data = []
-        for requirement, count in counter.most_common(50):
+        for requirement, count in counter.most_common(100):  # Увеличено до 100
             freq_data.append({
                 'Требование': requirement,
                 'Частота': count,
@@ -186,7 +215,7 @@ class VacancyDescriptionProcessor(IDescriptionProcessor):
         total_vacancies = len(self.processed_data)
 
         freq_data = []
-        for responsibility, count in counter.most_common(50):
+        for responsibility, count in counter.most_common(100):  # Увеличено до 100
             freq_data.append({
                 'Обязанность': responsibility,
                 'Частота': count,
@@ -230,4 +259,5 @@ class VacancyDescriptionProcessor(IDescriptionProcessor):
             'unique_responsibilities': unique_responsibilities,
             'avg_requirements_per_vacancy': round(avg_req_per_vacancy, 2),
             'avg_responsibilities_per_vacancy': round(avg_resp_per_vacancy, 2),
+            'classifier_used': self.use_classifier
         }
