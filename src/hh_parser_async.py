@@ -345,11 +345,12 @@ class HHParserAsync:
 
 
 def parse_vacancies_async(
-        query: str,
-        area: int = 1,
-        max_vacancies: int = 100,
-        max_concurrent: int = 10,
-        output_dir: str = "./result"
+    query: str,
+    area: int = 1,
+    max_vacancies: int = 100,
+    max_concurrent: int = 10,
+    output_dir: str = "./result",
+    save_raw: bool = True
 ) -> List[Dict]:
     """
     Удобная функция-обертка для асинхронного парсинга вакансий.
@@ -360,6 +361,7 @@ def parse_vacancies_async(
         max_vacancies: Максимальное количество вакансий для получения
         max_concurrent: Максимальное количество одновременных запросов
         output_dir: Директория для сохранения результатов
+        save_raw: Сохранять ли raw.json файл (по умолчанию True)
 
     Returns:
         Список словарей с детальной информацией о вакансиях
@@ -379,7 +381,8 @@ def parse_vacancies_async(
         parser.parse_vacancies(query, area, max_vacancies)
     )
 
-    if vacancies:
+    # Сохраняем результаты только если save_raw=True
+    if vacancies and save_raw:
         safe_query = query.replace(' ', '_').replace('/', '_').lower()
         parser.save_to_json(vacancies, f'{safe_query}_raw.json')
 
