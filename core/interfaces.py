@@ -92,8 +92,6 @@ class IVacancyAnalyzer(ABC):
         """Статистика по зарплатам."""
         pass
 
-    # ========== НОВЫЕ МЕТОДЫ ГРУППИРОВКИ ==========
-
     @abstractmethod
     def analyze_by_company(self, top_n: int = 20) -> pd.DataFrame:
         """
@@ -114,7 +112,6 @@ class IVacancyAnalyzer(ABC):
 
         Returns:
             DataFrame с форматами работы и их количеством
-            (удаленная работа, офис, гибрид, не указано)
         """
         pass
 
@@ -149,5 +146,92 @@ class IVacancyVisualizer(ABC):
             analyzer: Анализатор данных
             output_dir: Директория для сохранения
             show_plots: Показывать ли графики
+        """
+        pass
+
+
+# ========== НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ОБРАБОТКИ ОПИСАНИЙ ==========
+
+
+class ITextCleaner(ABC):
+    """Интерфейс для очистки текста от HTML и лишних символов."""
+
+    @abstractmethod
+    def clean(self, raw_text: str) -> str:
+        """
+        Очистка текста.
+
+        Args:
+            raw_text: Сырой текст (HTML)
+
+        Returns:
+            Очищенный текст
+        """
+        pass
+
+
+class ITextSectionExtractor(ABC):
+    """Интерфейс для извлечения секций из текста."""
+
+    @abstractmethod
+    def extract(self, text: str) -> List[str]:
+        """
+        Извлечение релевантных секций из текста.
+
+        Args:
+            text: Очищенный текст
+
+        Returns:
+            Список извлеченных элементов
+        """
+        pass
+
+
+class IDescriptionProcessor(ABC):
+    """Интерфейс для комплексной обработки описаний вакансий."""
+
+    @abstractmethod
+    def process_vacancies(
+            self,
+            vacancies: List[Dict]
+    ) -> pd.DataFrame:
+        """
+        Обработка описаний всех вакансий.
+
+        Args:
+            vacancies: Список вакансий с полем description
+
+        Returns:
+            DataFrame с извлеченными требованиями и задачами
+        """
+        pass
+
+    @abstractmethod
+    def get_requirements_frequency(self) -> pd.DataFrame:
+        """
+        Частотный анализ требований.
+
+        Returns:
+            DataFrame с частотой встречаемости требований
+        """
+        pass
+
+    @abstractmethod
+    def get_responsibilities_frequency(self) -> pd.DataFrame:
+        """
+        Частотный анализ задач/обязанностей.
+
+        Returns:
+            DataFrame с частотой встречаемости задач
+        """
+        pass
+
+    @abstractmethod
+    def get_detailed_vacancy_data(self) -> List[Dict]:
+        """
+        Получение детальных данных по каждой вакансии.
+
+        Returns:
+            Список словарей с детальной информацией
         """
         pass

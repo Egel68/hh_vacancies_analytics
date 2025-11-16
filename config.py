@@ -10,20 +10,19 @@ class Config:
     """Класс конфигурации приложения."""
 
     # Режим работы: 'single' или 'batch'
-    MODE: str = 'single'
+    MODE: str = 'batch'
 
     # Режим парсинга: 'sync' или 'async'
-    PARSING_MODE: str = 'async'
+    PARSING_MODE: str = 'sync'
 
     # Параметры для режима 'single'
-    SINGLE_QUERY: str = 'Python разработчик'
+    SINGLE_QUERY: str = 'Системный аналитик'
 
     # Параметры для режима 'batch'
     BATCH_QUERIES: List[str] = [
-        'Python разработчик',
-        'Data Scientist',
-        'Machine Learning Engineer',
-        'Backend разработчик'
+        'Системный аналитик',
+        'ML-инженер',
+        'Бизнес аналитик'
     ]
 
     # Общие параметры поиска
@@ -33,7 +32,7 @@ class Config:
 
     # Максимальное количество вакансий для обработки (по умолчанию 1000)
     # Если None - берутся все найденные вакансии
-    MAX_VACANCIES_LIMIT: Optional[int] = 100
+    MAX_VACANCIES_LIMIT: Optional[int] = 50
 
     # Собирать ВСЕ доступные вакансии (игнорирует MAX_VACANCIES_LIMIT)
     # ВНИМАНИЕ: может занять много времени при большом количестве вакансий

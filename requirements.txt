@@ -7,3 +7,4 @@ tqdm==4.67.1
 scikit-learn==1.7.2
 aiohttp>=3.9.0
 asyncio==4.0.0
+lxml>=4.9.0
