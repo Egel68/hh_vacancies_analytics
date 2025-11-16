@@ -1,96 +1,74 @@
 """
 Модуль для сохранения данных в различных форматах.
-Каждый класс отвечает за свой формат (Single Responsibility).
+Следует принципу Single Responsibility и Open/Closed.
 """
 
 import json
 import pandas as pd
 from pathlib import Path
-from typing import Any, List, Dict
+from typing import Any
 from core.interfaces import IDataSaver
 
 
 class JsonSaver(IDataSaver):
-    """Сохранение данных в JSON формате."""
+    """
+    Сохранение данных в формате JSON.
+
+    Следует принципу Single Responsibility - только сохранение в JSON.
+    """
 
     def save(self, data: Any, filepath: str) -> None:
         """
-        Сохранение в JSON.
+        Сохранение данных в JSON файл.
 
         Args:
-            data: Данные для сохранения
+            data: Данные для сохранения (должны быть сериализуемы в JSON)
             filepath: Путь к файлу
         """
-        path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        filepath_obj = Path(filepath)
+        filepath_obj.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-
-        print(f"💾 Сохранено: {path}")
 
 
 class CsvSaver(IDataSaver):
-    """Сохранение данных в CSV формате."""
+    """
+    Сохранение данных в формате CSV.
 
-    def save(self, data: Any, filepath: str) -> None:
+    Следует принципу Single Responsibility - только сохранение в CSV.
+    """
+
+    def save(self, data: pd.DataFrame, filepath: str) -> None:
         """
-        Сохранение в CSV.
+        Сохранение DataFrame в CSV файл.
 
         Args:
-            data: DataFrame или список словарей
+            data: DataFrame для сохранения
             filepath: Путь к файлу
         """
-        path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        filepath_obj = Path(filepath)
+        filepath_obj.parent.mkdir(parents=True, exist_ok=True)
 
-        if isinstance(data, pd.DataFrame):
-            df = data
-        elif isinstance(data, list) and data and isinstance(data[0], dict):
-            df = pd.DataFrame(data)
-        else:
-            raise ValueError("Данные должны быть DataFrame или списком словарей")
-
-        df.to_csv(path, index=False, encoding='utf-8-sig')
-        print(f"💾 Сохранено: {path} ({len(df)} записей)")
+        data.to_csv(filepath, index=False, encoding='utf-8-sig')
 
 
-class MultiFormatSaver:
+class ExcelSaver(IDataSaver):
     """
-    Класс для сохранения данных в нескольких форматах одновременно.
+    Сохранение данных в формате Excel.
 
-    Использует композицию (Composition over Inheritance).
+    Демонстрирует принцип Open/Closed - новая функциональность без изменения существующих классов.
     """
 
-    def __init__(self):
-        """Инициализация с доступными форматами."""
-        self.savers = {
-            'json': JsonSaver(),
-            'csv': CsvSaver()
-        }
-
-    def save(
-            self,
-            data: Any,
-            base_filepath: str,
-            formats: List[str] = None
-    ) -> None:
+    def save(self, data: pd.DataFrame, filepath: str) -> None:
         """
-        Сохранение в несколько форматов.
+        Сохранение DataFrame в Excel файл.
 
         Args:
-            data: Данные для сохранения
-            base_filepath: Базовый путь без расширения
-            formats: Список форматов ['json', 'csv']. Если None - все форматы
+            data: DataFrame для сохранения
+            filepath: Путь к файлу
         """
-        if formats is None:
-            formats = list(self.savers.keys())
+        filepath_obj = Path(filepath)
+        filepath_obj.parent.mkdir(parents=True, exist_ok=True)
 
-        base_path = Path(base_filepath)
-
-        for fmt in formats:
-            if fmt in self.savers:
-                filepath = base_path.parent / f"{base_path.stem}.{fmt}"
-                self.savers[fmt].save(data, str(filepath))
-            else:
-                print(f"⚠️  Неизвестный формат: {fmt}")
+        data.to_excel(filepath, index=False, engine='openpyxl')

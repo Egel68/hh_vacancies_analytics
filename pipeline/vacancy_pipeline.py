@@ -8,13 +8,22 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import pandas as pd
 
+from config import Config  # ← ПЕРЕНЕСЕН В НАЧАЛО
 from core.interfaces import (
     IVacancySearcher,
     IVacancyDetailsFetcher,
     IVacancyAnalyzer,
-    IVacancyVisualizer
+    IVacancyVisualizer,
+    IDescriptionProcessor
 )
 from storage.savers import JsonSaver, CsvSaver
+from parsers.text_cleaner import HtmlTextCleaner
+from extractors.requirements_extractor import (
+    RequirementsExtractor,
+    SkillsBasedRequirementsExtractor
+)
+from extractors.responsibilities_extractor import ResponsibilitiesExtractor
+from processors.description_processor import VacancyDescriptionProcessor
 
 
 class VacancyPipeline:
@@ -23,6 +32,7 @@ class VacancyPipeline:
 
     Реализует паттерн Facade для упрощения работы с системой.
     Следует принципу Open/Closed - открыт для расширения через DI.
+    Следует принципу Dependency Inversion - зависит от интерфейсов.
     """
 
     def __init__(
@@ -59,7 +69,8 @@ class VacancyPipeline:
             max_vacancies: Optional[int] = 1000,
             max_pages: int = 20,
             show_plots: bool = False,
-            tech_keywords: Optional[List[str]] = None
+            tech_keywords: Optional[List[str]] = None,
+            process_descriptions: bool = True
     ) -> Dict:
         """
         Обработка одного запроса.
@@ -71,6 +82,7 @@ class VacancyPipeline:
             max_pages: Максимальное количество страниц для парсинга
             show_plots: Показывать ли графики
             tech_keywords: Ключевые слова для анализа требований
+            process_descriptions: Обрабатывать ли описания для извлечения требований/задач
 
         Returns:
             Словарь со статистикой анализа
@@ -121,7 +133,7 @@ class VacancyPipeline:
         if len(skills_df) > 0:
             self.csv_saver.save(skills_df, str(output_dir / 'skills.csv'))
 
-        # 7. Анализ требований
+        # 7. Анализ требований (из key_skills)
         requirements_df = analyzer.analyze_requirements(tech_keywords)
         if len(requirements_df) > 0:
             self.csv_saver.save(
@@ -135,8 +147,6 @@ class VacancyPipeline:
             salary_stats,
             str(output_dir / 'salary_stats.json')
         )
-
-        # ========== НОВЫЕ ГРУППИРОВКИ ==========
 
         # 9. Анализ по компаниям
         companies_df = analyzer.analyze_by_company(top_n=20)
@@ -152,6 +162,19 @@ class VacancyPipeline:
         metro_df = analyzer.analyze_by_metro(top_n=20)
         if len(metro_df) > 0 and metro_df.iloc[0]['Станция метро'] != 'Нет данных':
             self.csv_saver.save(metro_df, str(output_dir / 'metro.csv'))
+
+        # ========== ОБРАБОТКА ОПИСАНИЙ ==========
+
+        description_processor = None
+
+        if process_descriptions:
+            description_processor = self._process_vacancy_descriptions(
+                detailed_vacancies,
+                output_dir,
+                tech_keywords
+            )
+
+        # =========================================
 
         # 12. Визуализация
         self.visualizer.visualize(analyzer, str(output_dir), show_plots)
@@ -177,10 +200,132 @@ class VacancyPipeline:
             'Папка': str(output_dir)
         }
 
+        # Добавление статистики по описаниям
+        if description_processor:
+            desc_stats = description_processor.get_statistics()
+            summary.update({
+                'Извлечено требований': desc_stats.get('total_requirements_extracted', 0),
+                'Извлечено обязанностей': desc_stats.get('total_responsibilities_extracted', 0),
+            })
+
         print(f"\n✅ Анализ завершен для: {query}")
         print(f"📁 Результаты в папке: {output_dir}")
 
         return summary
+
+    def _process_vacancy_descriptions(
+            self,
+            detailed_vacancies: List[Dict],
+            output_dir: Path,
+            tech_keywords: Optional[List[str]] = None
+    ) -> IDescriptionProcessor:
+        """
+        Обработка описаний вакансий для извлечения требований и обязанностей.
+
+        Args:
+            detailed_vacancies: Список детальной информации о вакансиях
+            output_dir: Директория для сохранения результатов
+            tech_keywords: Ключевые слова для анализа требований
+
+        Returns:
+            Процессор описаний вакансий
+        """
+        print(f"\n📝 Обработка описаний вакансий...")
+
+        # Создание компонентов
+        text_cleaner = HtmlTextCleaner(preserve_structure=True)
+
+        # Выбор экстрактора требований
+        if tech_keywords:
+            requirements_extractor = SkillsBasedRequirementsExtractor(
+                tech_keywords=tech_keywords,
+                min_length=Config.REQ_MIN_LENGTH,
+                max_length=Config.REQ_MAX_LENGTH,
+                min_words=Config.REQ_MIN_WORDS,
+                similarity_threshold=Config.SIMILARITY_THRESHOLD
+            )
+        else:
+            requirements_extractor = RequirementsExtractor(
+                min_length=Config.REQ_MIN_LENGTH,
+                max_length=Config.REQ_MAX_LENGTH,
+                min_words=Config.REQ_MIN_WORDS,
+                similarity_threshold=Config.SIMILARITY_THRESHOLD
+            )
+
+        # ========== ИСПРАВЛЕНО: используем параметры из Config ==========
+        responsibilities_extractor = ResponsibilitiesExtractor(
+            min_length=Config.RESP_MIN_LENGTH,
+            max_length=Config.RESP_MAX_LENGTH,
+            min_words=Config.RESP_MIN_WORDS,
+            similarity_threshold=Config.SIMILARITY_THRESHOLD
+        )
+        # ================================================================
+
+        # Создание процессора с классификатором
+        processor = VacancyDescriptionProcessor(
+            text_cleaner=text_cleaner,
+            requirements_extractor=requirements_extractor,
+            responsibilities_extractor=responsibilities_extractor,
+            use_classifier=Config.USE_CLASSIFIER
+        )
+
+        # Обработка вакансий
+        df = processor.process_vacancies(detailed_vacancies)
+
+        # Сохранение результатов
+        if len(df) > 0:
+            self.csv_saver.save(
+                df,
+                str(output_dir / 'extracted_requirements_responsibilities.csv')
+            )
+            print(f"  ✅ Сохранено: extracted_requirements_responsibilities.csv")
+
+        # Частотный анализ требований
+        req_freq = processor.get_requirements_frequency()
+        if len(req_freq) > 0:
+            self.csv_saver.save(
+                req_freq,
+                str(output_dir / 'requirements_frequency.csv')
+            )
+            print(f"  ✅ Сохранено: requirements_frequency.csv")
+            print(f"\n📊 Топ-10 наиболее частых требований:")
+            for idx, row in req_freq.head(10).iterrows():
+                print(f"   {idx + 1}. {row['Требование'][:60]}... ({row['Частота']} - {row['Процент']}%)")
+
+        # Частотный анализ обязанностей
+        resp_freq = processor.get_responsibilities_frequency()
+        if len(resp_freq) > 0:
+            self.csv_saver.save(
+                resp_freq,
+                str(output_dir / 'responsibilities_frequency.csv')
+            )
+            print(f"  ✅ Сохранено: responsibilities_frequency.csv")
+            print(f"\n📊 Топ-10 наиболее частых обязанностей:")
+            for idx, row in resp_freq.head(10).iterrows():
+                print(f"   {idx + 1}. {row['Обязанность'][:60]}... ({row['Частота']} - {row['Процент']}%)")
+
+        # Детальные данные в JSON
+        detailed_data = processor.get_detailed_vacancy_data()
+        self.json_saver.save(
+            detailed_data,
+            str(output_dir / 'detailed_extracted_data.json')
+        )
+        print(f"  ✅ Сохранено: detailed_extracted_data.json")
+
+        # Статистика обработки
+        stats = processor.get_statistics()
+        self.json_saver.save(
+            stats,
+            str(output_dir / 'description_processing_stats.json')
+        )
+        print(f"  ✅ Сохранено: description_processing_stats.json")
+        print(f"\n📊 Статистика обработки:")
+        print(f"   Вакансий обработано: {stats.get('total_vacancies_processed', 0)}")
+        print(f"   Классификатор использован: {'ДА' if stats.get('classifier_used') else 'НЕТ'}")
+        print(f"   Требований извлечено: {stats.get('total_requirements_extracted', 0)}")
+        print(f"   Обязанностей извлечено: {stats.get('total_responsibilities_extracted', 0)}")
+
+        return processor
 
     def process_batch_queries(
             self,
@@ -189,54 +334,59 @@ class VacancyPipeline:
             max_vacancies: Optional[int] = 1000,
             max_pages: int = 20,
             show_plots: bool = False,
-            tech_keywords: Optional[List[str]] = None
-    ) -> None:
+            tech_keywords: Optional[List[str]] = None,
+            process_descriptions: bool = True
+    ) -> pd.DataFrame:
         """
-        Пакетная обработка нескольких запросов.
+        Обработка нескольких запросов.
 
         Args:
             queries: Список названий должностей
             area: Код региона
             max_vacancies: Максимальное количество вакансий (None = все)
-            max_pages: Максимальное количество страниц
+            max_pages: Максимальное количество страниц для парсинга
             show_plots: Показывать ли графики
-            tech_keywords: Ключевые слова для анализа
+            tech_keywords: Ключевые слова для анализа требований
+            process_descriptions: Обрабатывать ли описания для извлечения требований/задач
+
+        Returns:
+            DataFrame со сводной статистикой по всем запросам
         """
-        print("=" * 60)
-        print("🔄 ПАКЕТНЫЙ АНАЛИЗ ВАКАНСИЙ")
-        print("=" * 60)
-        print(f"Должности: {', '.join(queries)}")
-        if max_vacancies:
-            print(f"Лимит вакансий: {max_vacancies}")
-        else:
-            print(f"Лимит вакансий: не установлен (собираем все)")
-        print()
+        print(f"\n{'=' * 60}")
+        print(f"🔄 Batch-анализ: {len(queries)} запросов")
+        print(f"{'=' * 60}")
 
-        summary_list = []
+        summaries = []
 
-        # Обработка каждого запроса
-        for query in queries:
+        for i, query in enumerate(queries, 1):
+            print(f"\n[{i}/{len(queries)}] Обработка: {query}")
+
             summary = self.process_single_query(
                 query=query,
                 area=area,
                 max_vacancies=max_vacancies,
                 max_pages=max_pages,
                 show_plots=show_plots,
-                tech_keywords=tech_keywords
+                tech_keywords=tech_keywords,
+                process_descriptions=process_descriptions
             )
 
             if summary:
-                summary_list.append(summary)
+                summaries.append(summary)
 
-        # Создание общей сводки
-        if summary_list:
-            summary_df = pd.DataFrame(summary_list)
+        # Создание сводного отчета
+        if summaries:
+            summary_df = pd.DataFrame(summaries)
             summary_path = self.output_dir / 'batch_summary.csv'
             self.csv_saver.save(summary_df, str(summary_path))
 
-            print("\n" + "=" * 60)
-            print("📋 ОБЩАЯ СВОДКА")
-            print("=" * 60)
-            print(summary_df.to_string(index=False))
+            print(f"\n{'=' * 60}")
+            print(f"✅ Batch-анализ завершен")
+            print(f"📊 Обработано запросов: {len(summaries)}/{len(queries)}")
+            print(f"📁 Сводный отчет: {summary_path}")
+            print(f"{'=' * 60}\n")
 
-        print("\n✅ Пакетный анализ завершен!")
+            return summary_df
+        else:
+            print(f"\n❌ Не удалось обработать ни один запрос")
+            return pd.DataFrame()
