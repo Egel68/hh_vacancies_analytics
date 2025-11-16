@@ -1,21 +1,16 @@
 """
 Модуль извлечения требований к кандидату из текста описания.
-Следует принципу Single Responsibility и Open/Closed.
+Улучшенная версия с фильтрацией шума и умной дедупликацией.
 """
 
 import re
 from typing import List, Set, Dict
+from difflib import SequenceMatcher
 from core.interfaces import ITextSectionExtractor
 
 
 class RequirementsExtractor(ITextSectionExtractor):
-    """
-    Извлечение требований к кандидату из текста вакансии.
-
-    Использует паттерны для поиска секций с требованиями
-    и извлекает структурированную информацию.
-    Следует принципу Single Responsibility - только извлечение требований.
-    """
+    """Извлечение требований к кандидату из текста вакансии."""
 
     # Паттерны заголовков секций с требованиями
     REQUIREMENT_HEADERS = [
@@ -34,15 +29,21 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'нам важно:?',
         r'мы ищем:?',
         r'идеальный кандидат:?',
+        r'наш идеальный кандидат:?',
         r'вы нам подходите:?',
         r'технические требования:?',
         r'hard skills:?',
+        r'кого ищем:?',
+        r'наши ожидания:?',
+        r'от кандидата:?',
     ]
 
-    # Паттерны-маркеры требований внутри текста
+    # Паттерны-маркеры требований
     REQUIREMENT_MARKERS = [
         r'опыт работы',
+        r'опыт.*?(?:от|не менее|более)',
         r'знание',
+        r'знания',
         r'владение',
         r'умение',
         r'навык[ии]',
@@ -53,41 +54,104 @@ class RequirementsExtractor(ITextSectionExtractor):
         r'proficiency',
         r'familiar with',
         r'expertise',
+        r'умеет',
+        r'знает',
+        r'имеет опыт',
+        r'понимает',
     ]
 
-    def __init__(self, min_length: int = 10, max_length: int = 200):
+    # НОВОЕ: Стоп-паттерны для исключения нерелевантных секций
+    STOP_SECTION_HEADERS = [
+        r'(?:что )?мы предлагаем:?',
+        r'условия работы?:?',
+        r'условия:?',
+        r'we offer:?',
+        r'benefits:?',
+        r'о компании:?',
+        r'о нас:?',
+        r'about (?:us|company):?',
+        r'зарплата:?',
+        r'salary:?',
+        r'compensation:?',
+        r'бенефиты:?',
+        r'корпоративная жизнь:?',
+        r'оформление:?',
+        r'график работы:?',
+        r'локация:?',
+        r'location:?',
+        r'офис:?',
+        r'формат работы:?',
+        r'соц\.?\s*пакет:?',
+        r'развитие:?',
+        r'обучение:?',
+    ]
+
+    # НОВОЕ: Стоп-слова/фразы внутри требований
+    NOISE_PHRASES = [
+        r'^мы предлагаем',
+        r'^что мы предлагаем',
+        r'^условия',
+        r'^оформление',
+        r'^работа в офисе',
+        r'^удал[её]нн?ый формат',
+        r'^гибридный формат',
+        r'^график',
+        r'^зарплата',
+        r'^з/?п',
+        r'^\d+/\d+',  # 5/2
+        r'^офис',
+        r'^локация',
+        r'^дмс',
+        r'^вмс',
+        r'корпоратив',
+        r'тимбилдинг',
+        r'бесплатн[ыо][йе]',
+        r'компенсаци[яю]',
+    ]
+
+    def __init__(
+            self,
+            min_length: int = 15,
+            max_length: int = 300,
+            min_words: int = 3,
+            similarity_threshold: float = 0.85
+    ):
         """
         Инициализация экстрактора.
 
         Args:
             min_length: Минимальная длина требования (символов)
             max_length: Максимальная длина требования (символов)
+            min_words: Минимальное количество слов
+            similarity_threshold: Порог схожести для дедупликации (0-1)
         """
         self.min_length = min_length
         self.max_length = max_length
+        self.min_words = min_words
+        self.similarity_threshold = similarity_threshold
         self._compile_patterns()
 
     def _compile_patterns(self):
-        """Компиляция регулярных выражений для оптимизации."""
+        """Компиляция регулярных выражений."""
         self.header_pattern = re.compile(
-            r'(?:^|\n)\s*(' + '|'.join(self.REQUIREMENT_HEADERS) + r')\s*(?:\n|$)',
+            r'(?:^|\n)\s*(?:' + '|'.join(self.REQUIREMENT_HEADERS) + r')\s*(?:\n|$)',
             re.IGNORECASE | re.MULTILINE
         )
         self.marker_pattern = re.compile(
-            r'\b(' + '|'.join(self.REQUIREMENT_MARKERS) + r')\b',
+            r'\b(?:' + '|'.join(self.REQUIREMENT_MARKERS) + r')',
+            re.IGNORECASE
+        )
+        self.stop_section_pattern = re.compile(
+            r'(?:^|\n)\s*(?:' + '|'.join(self.STOP_SECTION_HEADERS) + r')',
+            re.IGNORECASE | re.MULTILINE
+        )
+        self.noise_pattern = re.compile(
+            '|'.join(self.NOISE_PHRASES),
             re.IGNORECASE
         )
 
     def extract(self, text: str) -> List[str]:
-        """
-        Извлечение требований из текста.
-
-        Args:
-            text: Очищенный текст вакансии
-
-        Returns:
-            Список требований (строки)
-        """
+        """Извлечение требований из текста."""
         if not text:
             return []
 
@@ -105,227 +169,246 @@ class RequirementsExtractor(ITextSectionExtractor):
         list_requirements = self._extract_from_lists(text)
         requirements.extend(list_requirements)
 
-        # Очистка и дедупликация
-        requirements = self._clean_and_deduplicate(requirements)
+        # УЛУЧШЕННАЯ очистка и дедупликация
+        requirements = self._advanced_clean_and_deduplicate(requirements)
 
         return requirements
 
     def _extract_from_sections(self, text: str) -> List[str]:
-        """
-        Извлечение требований из размеченных секций.
-
-        Ищет секции, начинающиеся с заголовков типа "Требования:"
-        """
+        """Извлечение требований из размеченных секций."""
         requirements = []
 
-        # Поиск секции с требованиями
-        match = self.header_pattern.search(text)
+        # Поиск всех секций с требованиями
+        for match in self.header_pattern.finditer(text):
+            section_start = match.end()
 
-        if not match:
-            return requirements
+            # Поиск конца секции
+            section_end = self._find_section_end(text, section_start)
 
-        # Получение текста после заголовка
-        section_start = match.end()
+            if section_end is None:
+                section_end = len(text)
 
-        # Поиск конца секции (следующий заголовок или конец текста)
-        next_section_patterns = [
-            r'\n\n(?:обязанности|задачи|responsibilities|условия|мы предлагаем|what we offer|benefits|о компании):',
-        ]
+            section_text = text[section_start:section_end]
 
-        section_end = len(text)
-        for pattern in next_section_patterns:
-            next_match = re.search(pattern, text[section_start:], re.IGNORECASE)
-            if next_match:
-                section_end = section_start + next_match.start()
-                break
-
-        section_text = text[section_start:section_end]
-
-        # Разбиение секции на отдельные элементы
-        items = self._split_into_items(section_text)
-        requirements.extend(items)
+            # Проверка, что это не стоп-секция
+            if not self.stop_section_pattern.search(match.group()):
+                items = self._split_into_items(section_text)
+                requirements.extend(items)
 
         return requirements
 
-    def _extract_by_markers(self, text: str) -> List[str]:
-        """
-        Извлечение требований по ключевым маркерам.
+    def _find_section_end(self, text: str, start_pos: int) -> int:
+        """Поиск конца текущей секции."""
+        # Ищем следующий заголовок (любой)
+        next_headers_pattern = re.compile(
+            r'\n\s*(?:'
+            r'обязанности|'
+            r'задачи|'
+            r'responsibilities|'
+            r'условия|'
+            r'мы предлагаем|'
+            r'what we offer|'
+            r'benefits|'
+            r'о компании|'
+            r'требования|'
+            r'requirements'
+            r'):',
+            re.IGNORECASE
+        )
 
-        Ищет предложения, содержащие маркеры типа "опыт работы", "знание" и т.д.
-        """
+        match = next_headers_pattern.search(text[start_pos:])
+
+        if match:
+            return start_pos + match.start()
+
+        return len(text)
+
+    def _extract_by_markers(self, text: str) -> List[str]:
+        """Извлечение требований по ключевым маркерам."""
         requirements = []
 
-        # Разбиение текста на предложения
-        sentences = re.split(r'[.!?;]\s+', text)
+        # Разбиение на предложения
+        sentences = re.split(r'[.!?]\s+', text)
 
         for sentence in sentences:
             # Проверка наличия маркеров
             if self.marker_pattern.search(sentence):
                 cleaned = sentence.strip()
 
-                # Фильтрация по длине
-                if self.min_length <= len(cleaned) <= self.max_length:
+                # Фильтрация
+                if self._is_valid_requirement(cleaned):
                     requirements.append(cleaned)
 
         return requirements
 
     def _extract_from_lists(self, text: str) -> List[str]:
-        """
-        Извлечение требований из маркированных и нумерованных списков.
-        """
+        """Извлечение из маркированных и нумерованных списков."""
         requirements = []
 
-        # Паттерны для списков
         list_patterns = [
-            r'^[-•*]\s*(.+)$',  # Маркированный список: - item
-            r'^\d+[\.)]\s*(.+)$',  # Нумерованный список: 1. item или 1) item
+            r'^[-•*]\s*(.+)$',
+            r'^\d+[\.)]\s*(.+)$',
         ]
 
         lines = text.split('\n')
 
         for line in lines:
             for pattern in list_patterns:
-                match = re.match(pattern, line.strip(), re.MULTILINE)
+                match = re.match(pattern, line.strip())
 
                 if match:
                     item = match.group(1).strip()
 
-                    # Фильтрация по длине
-                    if self.min_length <= len(item) <= self.max_length:
+                    if self._is_valid_requirement(item):
                         requirements.append(item)
-                    break  # Одно совпадение на строку
+                    break
 
         return requirements
 
     def _split_into_items(self, text: str) -> List[str]:
-        """
-        Разбиение текста на отдельные элементы.
-
-        Использует различные разделители: точка с запятой, перевод строки, точка.
-        """
+        """Разбиение текста на отдельные элементы."""
         items = []
 
-        # Разбиение по различным разделителям
+        # Разбиение по разделителям
         separators = [';', '\n']
-
         current_items = [text]
 
-        # Последовательное разбиение по разделителям
         for sep in separators:
             new_items = []
             for item in current_items:
                 new_items.extend(item.split(sep))
             current_items = new_items
 
-        # Дополнительное разбиение по точке (осторожно, чтобы не разбить аббревиатуры)
+        # Разбиение по точке (если после точки заглавная буква)
         final_items = []
         for item in current_items:
-            # Разбиение по точке, если после точки заглавная буква
-            parts = re.split(r'\.\s+(?=[А-ЯA-Z])', item)
+            parts = re.split(r'\.\s+(?=[А-ЯA-ZЁ])', item)
             final_items.extend(parts)
 
         # Фильтрация и очистка
         for item in final_items:
-            cleaned = item.strip()
-            # Удаление начальных маркеров списка, если остались
-            cleaned = re.sub(r'^[-•*\d+\.)]\s*', '', cleaned)
+            cleaned = self._clean_item(item)
 
-            if self.min_length <= len(cleaned) <= self.max_length:
+            if self._is_valid_requirement(cleaned):
                 items.append(cleaned)
 
         return items
 
-    def _clean_and_deduplicate(self, requirements: List[str]) -> List[str]:
+    def _clean_item(self, text: str) -> str:
+        """Очистка отдельного элемента."""
+        # Удаление начальных маркеров
+        text = re.sub(r'^[-•*\d+\.)]\s*', '', text)
+
+        # Удаление лишних пробелов
+        text = ' '.join(text.split())
+
+        return text.strip()
+
+    def _is_valid_requirement(self, text: str) -> bool:
+        """Проверка валидности требования."""
+        if not text:
+            return False
+
+        # Проверка длины
+        if len(text) < self.min_length or len(text) > self.max_length:
+            return False
+
+        # Проверка количества слов
+        words = text.split()
+        if len(words) < self.min_words:
+            return False
+
+        # Исключение заголовков (заканчиваются на ":")
+        if text.strip().endswith(':'):
+            return False
+
+        # Исключение стоп-фраз
+        if self.noise_pattern.search(text):
+            return False
+
+        # Исключение чисто числовых значений
+        if re.match(r'^\d+[\s\-/]*\d*$', text.strip()):
+            return False
+
+        return True
+
+    def _advanced_clean_and_deduplicate(self, requirements: List[str]) -> List[str]:
         """
-        Очистка и удаление дубликатов из списка требований.
+        Продвинутая очистка и дедупликация.
+
+        Использует нечеткое сравнение для удаления похожих элементов.
         """
-        # Удаление дубликатов с сохранением порядка
-        seen = set()
+        if not requirements:
+            return []
+
+        # Предварительная очистка
+        cleaned = [req for req in requirements if self._is_valid_requirement(req)]
+
+        # Нечеткая дедупликация
         unique_requirements = []
 
-        for req in requirements:
-            # Нормализация для сравнения (нижний регистр, без лишних пробелов)
-            normalized = ' '.join(req.lower().split())
+        for req in cleaned:
+            is_duplicate = False
 
-            if normalized not in seen and len(normalized) >= self.min_length:
-                seen.add(normalized)
+            # Сравнение с уже добавленными
+            for existing in unique_requirements:
+                similarity = self._calculate_similarity(req, existing)
+
+                if similarity >= self.similarity_threshold:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
                 unique_requirements.append(req)
 
         return unique_requirements
 
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Вычисление схожести двух строк (0-1)."""
+        # Нормализация для сравнения
+        norm1 = ' '.join(text1.lower().split())
+        norm2 = ' '.join(text2.lower().split())
+
+        return SequenceMatcher(None, norm1, norm2).ratio()
+
 
 class SkillsBasedRequirementsExtractor(RequirementsExtractor):
-    """
-    Расширенный экстрактор с фокусом на технические навыки.
-
-    Демонстрирует принцип Open/Closed - расширение базовой функциональности
-    без модификации базового класса.
-    Принцип Liskov Substitution - можно использовать вместо базового класса.
-    """
+    """Расширенный экстрактор с фокусом на технические навыки."""
 
     def __init__(
             self,
             tech_keywords: List[str],
-            min_length: int = 10,
-            max_length: int = 200
+            min_length: int = 15,
+            max_length: int = 300,
+            min_words: int = 3,
+            similarity_threshold: float = 0.85
     ):
-        """
-        Инициализация.
-
-        Args:
-            tech_keywords: Список технических ключевых слов для приоритизации
-            min_length: Минимальная длина требования
-            max_length: Максимальная длина требования
-        """
-        super().__init__(min_length, max_length)
+        super().__init__(min_length, max_length, min_words, similarity_threshold)
         self.tech_keywords = [kw.lower() for kw in tech_keywords]
 
     def extract(self, text: str) -> List[str]:
-        """
-        Извлечение с приоритетом технических требований.
-
-        Сначала возвращаются требования с техническими терминами,
-        затем остальные.
-        """
-        # Базовое извлечение через родительский класс
+        """Извлечение с приоритетом технических требований."""
         base_requirements = super().extract(text)
 
-        # Разделение на технические и общие требования
+        # Разделение на технические и общие
         tech_requirements = []
         other_requirements = []
 
         for req in base_requirements:
             req_lower = req.lower()
 
-            # Проверка наличия технических терминов
-            has_tech = any(kw in req_lower for kw in self.tech_keywords)
-
-            if has_tech:
+            if any(kw in req_lower for kw in self.tech_keywords):
                 tech_requirements.append(req)
             else:
                 other_requirements.append(req)
 
-        # Технические требования в приоритете
         return tech_requirements + other_requirements
 
     def get_tech_requirements_only(self, text: str) -> List[str]:
-        """
-        Получение только технических требований.
-
-        Args:
-            text: Текст для анализа
-
-        Returns:
-            Список только технических требований
-        """
+        """Получение только технических требований."""
         all_requirements = super().extract(text)
 
-        tech_requirements = []
-
-        for req in all_requirements:
-            req_lower = req.lower()
-
-            if any(kw in req_lower for kw in self.tech_keywords):
-                tech_requirements.append(req)
-
-        return tech_requirements
+        return [
+            req for req in all_requirements
+            if any(kw in req.lower() for kw in self.tech_keywords)
+        ]

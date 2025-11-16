@@ -1,21 +1,16 @@
 """
 Модуль извлечения обязанностей и задач из описания вакансии.
-Следует принципу Single Responsibility.
+Улучшенная версия с фильтрацией шума.
 """
 
 import re
 from typing import List
+from difflib import SequenceMatcher
 from core.interfaces import ITextSectionExtractor
 
 
 class ResponsibilitiesExtractor(ITextSectionExtractor):
-    """
-    Извлечение обязанностей и задач из текста вакансии.
-
-    Использует паттерны для поиска секций с описанием задач
-    и обязанностей кандидата.
-    Следует принципу Single Responsibility - только извлечение обязанностей.
-    """
+    """Извлечение обязанностей и задач из текста вакансии."""
 
     # Паттерны заголовков секций с обязанностями
     RESPONSIBILITY_HEADERS = [
@@ -23,6 +18,7 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         r'ваши обязанности:?',
         r'в ваши обязанности входит:?',
         r'задачи:?',
+        r'ваши задачи:?',
         r'вам предстоит:?',
         r'чем предстоит заниматься:?',
         r'responsibilities:?',
@@ -35,6 +31,7 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         r'функционал:?',
         r'основные задачи:?',
         r'чем заниматься:?',
+        r'чем предстоит:?',
     ]
 
     # Паттерны-маркеры задач
@@ -62,194 +59,268 @@ class ResponsibilitiesExtractor(ITextSectionExtractor):
         r'build',
         r'create',
         r'support',
+        r'анализ',
+        r'анализировать',
+        r'сбор',
+        r'собирать',
+        r'формирование',
+        r'формировать',
+        r'тестирование',
+        r'тестировать',
     ]
 
-    def __init__(self, min_length: int = 15, max_length: int = 250):
-        """
-        Инициализация экстрактора.
+    # Стоп-секции (как в RequirementsExtractor)
+    STOP_SECTION_HEADERS = [
+        r'(?:что )?мы предлагаем:?',
+        r'условия работы?:?',
+        r'условия:?',
+        r'we offer:?',
+        r'benefits:?',
+        r'о компании:?',
+        r'требования:?',
+        r'requirements:?',
+        r'зарплата:?',
+        r'бенефиты:?',
+        r'корпоративная жизнь:?',
+        r'график работы:?',
+        r'формат работы:?',
+    ]
 
-        Args:
-            min_length: Минимальная длина описания задачи
-            max_length: Максимальная длина описания задачи
-        """
+    # Стоп-фразы
+    NOISE_PHRASES = [
+        r'^мы предлагаем',
+        r'^условия',
+        r'^оформление',
+        r'^удал[её]нн?ый формат',
+        r'^гибридный формат',
+        r'^график',
+        r'^зарплата',
+        r'^\d+/\d+',
+        r'^офис',
+        r'^дмс',
+        r'корпоратив',
+        r'тимбилдинг',
+    ]
+
+    def __init__(
+            self,
+            min_length: int = 20,
+            max_length: int = 350,
+            min_words: int = 4,
+            similarity_threshold: float = 0.85
+    ):
+        """Инициализация экстрактора обязанностей."""
         self.min_length = min_length
         self.max_length = max_length
+        self.min_words = min_words
+        self.similarity_threshold = similarity_threshold
         self._compile_patterns()
 
     def _compile_patterns(self):
-        """Компиляция регулярных выражений для оптимизации."""
+        """Компиляция регулярных выражений."""
         self.header_pattern = re.compile(
-            r'(?:^|\n)\s*(' + '|'.join(self.RESPONSIBILITY_HEADERS) + r')\s*(?:\n|$)',
+            r'(?:^|\n)\s*(?:' + '|'.join(self.RESPONSIBILITY_HEADERS) + r')\s*(?:\n|$)',
             re.IGNORECASE | re.MULTILINE
         )
         self.marker_pattern = re.compile(
-            r'\b(' + '|'.join(self.TASK_MARKERS) + r')\b',
+            r'\b(?:' + '|'.join(self.TASK_MARKERS) + r')',
+            re.IGNORECASE
+        )
+        self.stop_section_pattern = re.compile(
+            r'(?:^|\n)\s*(?:' + '|'.join(self.STOP_SECTION_HEADERS) + r')',
+            re.IGNORECASE | re.MULTILINE
+        )
+        self.noise_pattern = re.compile(
+            '|'.join(self.NOISE_PHRASES),
             re.IGNORECASE
         )
 
     def extract(self, text: str) -> List[str]:
-        """
-        Извлечение обязанностей из текста.
-
-        Args:
-            text: Очищенный текст вакансии
-
-        Returns:
-            Список обязанностей/задач
-        """
+        """Извлечение обязанностей из текста."""
         if not text:
             return []
 
         responsibilities = []
 
-        # Метод 1: Поиск по заголовкам секций
+        # Три метода извлечения
         section_resp = self._extract_from_sections(text)
         responsibilities.extend(section_resp)
 
-        # Метод 2: Поиск по маркерам задач
         marker_resp = self._extract_by_markers(text)
         responsibilities.extend(marker_resp)
 
-        # Метод 3: Извлечение из списков
         list_resp = self._extract_from_lists(text)
         responsibilities.extend(list_resp)
 
-        # Очистка и дедупликация
-        responsibilities = self._clean_and_deduplicate(responsibilities)
+        # Улучшенная очистка
+        responsibilities = self._advanced_clean_and_deduplicate(responsibilities)
 
         return responsibilities
 
     def _extract_from_sections(self, text: str) -> List[str]:
-        """
-        Извлечение обязанностей из размеченных секций.
-        """
+        """Извлечение из секций."""
         responsibilities = []
 
-        # Поиск секции с обязанностями
-        match = self.header_pattern.search(text)
+        for match in self.header_pattern.finditer(text):
+            section_start = match.end()
+            section_end = self._find_section_end(text, section_start)
 
-        if not match:
-            return responsibilities
+            if section_end is None:
+                section_end = len(text)
 
-        # Получение текста после заголовка
-        section_start = match.end()
+            section_text = text[section_start:section_end]
 
-        # Поиск конца секции (следующий заголовок или конец текста)
-        next_section_patterns = [
-            r'\n\n(?:требования|условия|мы предлагаем|requirements|what we offer|benefits|о компании):',
-        ]
-
-        section_end = len(text)
-        for pattern in next_section_patterns:
-            next_match = re.search(pattern, text[section_start:], re.IGNORECASE)
-            if next_match:
-                section_end = section_start + next_match.start()
-                break
-
-        section_text = text[section_start:section_end]
-
-        # Разбиение секции на элементы
-        items = self._split_into_items(section_text)
-        responsibilities.extend(items)
+            # Проверка на стоп-секцию
+            if not self.stop_section_pattern.search(match.group()):
+                items = self._split_into_items(section_text)
+                responsibilities.extend(items)
 
         return responsibilities
 
-    def _extract_by_markers(self, text: str) -> List[str]:
-        """
-        Извлечение задач по ключевым маркерам.
-        """
-        responsibilities = []
+    def _find_section_end(self, text: str, start_pos: int) -> int:
+        """Поиск конца секции."""
+        next_headers_pattern = re.compile(
+            r'\n\s*(?:'
+            r'требования|'
+            r'условия|'
+            r'мы предлагаем|'
+            r'what we offer|'
+            r'requirements|'
+            r'о компании|'
+            r'обязанности|'
+            r'задачи'
+            r'):',
+            re.IGNORECASE
+        )
 
-        # Разбиение текста на предложения
-        sentences = re.split(r'[.!?;]\s+', text)
+        match = next_headers_pattern.search(text[start_pos:])
+
+        if match:
+            return start_pos + match.start()
+
+        return len(text)
+
+    def _extract_by_markers(self, text: str) -> List[str]:
+        """Извлечение по маркерам."""
+        responsibilities = []
+        sentences = re.split(r'[.!?]\s+', text)
 
         for sentence in sentences:
-            # Проверка наличия маркеров
             if self.marker_pattern.search(sentence):
                 cleaned = sentence.strip()
 
-                # Фильтрация по длине
-                if self.min_length <= len(cleaned) <= self.max_length:
+                if self._is_valid_responsibility(cleaned):
                     responsibilities.append(cleaned)
 
         return responsibilities
 
     def _extract_from_lists(self, text: str) -> List[str]:
-        """
-        Извлечение обязанностей из маркированных и нумерованных списков.
-        """
+        """Извлечение из списков."""
         responsibilities = []
 
-        # Паттерны для списков
         list_patterns = [
-            r'^[-•*]\s*(.+)$',  # Маркированный список
-            r'^\d+[\.)]\s*(.+)$',  # Нумерованный список
+            r'^[-•*]\s*(.+)$',
+            r'^\d+[\.)]\s*(.+)$',
         ]
 
         lines = text.split('\n')
 
         for line in lines:
             for pattern in list_patterns:
-                match = re.match(pattern, line.strip(), re.MULTILINE)
+                match = re.match(pattern, line.strip())
 
                 if match:
                     item = match.group(1).strip()
 
-                    # Фильтрация по длине
-                    if self.min_length <= len(item) <= self.max_length:
+                    if self._is_valid_responsibility(item):
                         responsibilities.append(item)
                     break
 
         return responsibilities
 
     def _split_into_items(self, text: str) -> List[str]:
-        """
-        Разбиение текста на отдельные элементы.
-        """
+        """Разбиение на элементы."""
         items = []
 
-        # Разбиение по различным разделителям
         separators = [';', '\n']
-
         current_items = [text]
 
-        # Последовательное разбиение по разделителям
         for sep in separators:
             new_items = []
             for item in current_items:
                 new_items.extend(item.split(sep))
             current_items = new_items
 
-        # Дополнительное разбиение по точке
+        # Разбиение по точке
         final_items = []
         for item in current_items:
-            parts = re.split(r'\.\s+(?=[А-ЯA-Z])', item)
+            parts = re.split(r'\.\s+(?=[А-ЯA-ZЁ])', item)
             final_items.extend(parts)
 
-        # Фильтрация и очистка
         for item in final_items:
-            cleaned = item.strip()
-            # Удаление начальных маркеров списка
-            cleaned = re.sub(r'^[-•*\d+\.)]\s*', '', cleaned)
+            cleaned = self._clean_item(item)
 
-            if self.min_length <= len(cleaned) <= self.max_length:
+            if self._is_valid_responsibility(cleaned):
                 items.append(cleaned)
 
         return items
 
-    def _clean_and_deduplicate(self, responsibilities: List[str]) -> List[str]:
-        """
-        Очистка и удаление дубликатов.
-        """
-        seen = set()
+    def _clean_item(self, text: str) -> str:
+        """Очистка элемента."""
+        text = re.sub(r'^[-•*\d+\.)]\s*', '', text)
+        text = ' '.join(text.split())
+        return text.strip()
+
+    def _is_valid_responsibility(self, text: str) -> bool:
+        """Проверка валидности обязанности."""
+        if not text:
+            return False
+
+        if len(text) < self.min_length or len(text) > self.max_length:
+            return False
+
+        words = text.split()
+        if len(words) < self.min_words:
+            return False
+
+        if text.strip().endswith(':'):
+            return False
+
+        if self.noise_pattern.search(text):
+            return False
+
+        if re.match(r'^\d+[\s\-/]*\d*$', text.strip()):
+            return False
+
+        return True
+
+    def _advanced_clean_and_deduplicate(self, responsibilities: List[str]) -> List[str]:
+        """Продвинутая дедупликация."""
+        if not responsibilities:
+            return []
+
+        cleaned = [r for r in responsibilities if self._is_valid_responsibility(r)]
+
         unique_resp = []
 
-        for resp in responsibilities:
-            # Нормализация для сравнения
-            normalized = ' '.join(resp.lower().split())
+        for resp in cleaned:
+            is_duplicate = False
 
-            if normalized not in seen and len(normalized) >= self.min_length:
-                seen.add(normalized)
+            for existing in unique_resp:
+                similarity = self._calculate_similarity(resp, existing)
+
+                if similarity >= self.similarity_threshold:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
                 unique_resp.append(resp)
 
         return unique_resp
+
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Вычисление схожести."""
+        norm1 = ' '.join(text1.lower().split())
+        norm2 = ' '.join(text2.lower().split())
+
+        return SequenceMatcher(None, norm1, norm2).ratio()

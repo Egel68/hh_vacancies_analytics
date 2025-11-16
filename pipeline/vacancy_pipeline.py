@@ -218,38 +218,36 @@ class VacancyPipeline:
             output_dir: Path,
             tech_keywords: Optional[List[str]] = None
     ) -> IDescriptionProcessor:
-        """
-        Обработка описаний вакансий для извлечения требований и задач.
-
-        Args:
-            detailed_vacancies: Список вакансий с описаниями
-            output_dir: Директория для сохранения результатов
-            tech_keywords: Технические ключевые слова
-
-        Returns:
-            Процессор с результатами обработки
-        """
+        """Обработка описаний вакансий."""
         print(f"\n📝 Обработка описаний вакансий...")
 
-        # Создание компонентов (Dependency Injection)
+        # Создание компонентов с настройками из Config
+        from config import Config
+
         text_cleaner = HtmlTextCleaner(preserve_structure=True)
 
-        # Выбор экстрактора требований в зависимости от наличия tech_keywords
+        # Выбор экстрактора требований
         if tech_keywords:
             requirements_extractor = SkillsBasedRequirementsExtractor(
                 tech_keywords=tech_keywords,
-                min_length=10,
-                max_length=200
+                min_length=Config.EXTRACTION_MIN_LENGTH,
+                max_length=Config.EXTRACTION_MAX_LENGTH,
+                min_words=Config.EXTRACTION_MIN_WORDS,
+                similarity_threshold=Config.SIMILARITY_THRESHOLD
             )
         else:
             requirements_extractor = RequirementsExtractor(
-                min_length=10,
-                max_length=200
+                min_length=Config.EXTRACTION_MIN_LENGTH,
+                max_length=Config.EXTRACTION_MAX_LENGTH,
+                min_words=Config.EXTRACTION_MIN_WORDS,
+                similarity_threshold=Config.SIMILARITY_THRESHOLD
             )
 
         responsibilities_extractor = ResponsibilitiesExtractor(
-            min_length=15,
-            max_length=250
+            min_length=20,  # Для обязанностей чуть больше
+            max_length=350,
+            min_words=4,
+            similarity_threshold=Config.SIMILARITY_THRESHOLD
         )
 
         # Создание процессора (паттерн Facade)

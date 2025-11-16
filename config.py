@@ -10,7 +10,7 @@ class Config:
     """Класс конфигурации приложения."""
 
     # Режим работы: 'single' или 'batch'
-    MODE: str = 'batch'
+    MODE: str = 'single'
 
     # Режим парсинга: 'sync' или 'async'
     PARSING_MODE: str = 'sync'
@@ -32,7 +32,7 @@ class Config:
 
     # Максимальное количество вакансий для обработки (по умолчанию 1000)
     # Если None - берутся все найденные вакансии
-    MAX_VACANCIES_LIMIT: Optional[int] = 50
+    MAX_VACANCIES_LIMIT: Optional[int] = 30
 
     # Собирать ВСЕ доступные вакансии (игнорирует MAX_VACANCIES_LIMIT)
     # ВНИМАНИЕ: может занять много времени при большом количестве вакансий
@@ -103,3 +103,9 @@ class Config:
         'Asyncio', 'Scrapy', 'BeautifulSoup', 'Selenium',
         'Nginx', 'Gunicorn', 'Uvicorn', 'Apache', 'Airflow'
     ]
+
+    # Параметры извлечения требований/обязанностей
+    EXTRACTION_MIN_LENGTH: int = 15  # Минимальная длина требования
+    EXTRACTION_MAX_LENGTH: int = 300  # Максимальная длина требования
+    EXTRACTION_MIN_WORDS: int = 3  # Минимум слов
+    SIMILARITY_THRESHOLD: float = 0.85  # Порог схожести для дедупликации
