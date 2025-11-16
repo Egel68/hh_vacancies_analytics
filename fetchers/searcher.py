@@ -27,9 +27,18 @@ class SyncVacancySearcher(IVacancySearcher):
             self,
             query: str,
             area: int = 1,
-            max_pages: int = 20
+            max_pages: int = 20,
+            max_vacancies: Optional[int] = None
     ) -> List[Dict]:
-        """Синхронный поиск вакансий."""
+        """
+        Синхронный поиск вакансий.
+
+        Args:
+            query: Название должности
+            area: Код региона
+            max_pages: Максимальное количество страниц
+            max_vacancies: Максимальное количество вакансий (None = все)
+        """
         print(f"🔍 Поиск вакансий: {query}")
         vacancies = []
 
@@ -54,7 +63,16 @@ class SyncVacancySearcher(IVacancySearcher):
                     break
 
                 vacancies.extend(data['items'])
-                print(f"📥 Собрано вакансий: {len(vacancies)}")
+
+                # Информация о прогрессе
+                total_found = data.get('found', 0)
+                print(f"📥 Собрано вакансий: {len(vacancies)} из {total_found} найденных")
+
+                # Проверка лимита
+                if max_vacancies and len(vacancies) >= max_vacancies:
+                    vacancies = vacancies[:max_vacancies]
+                    print(f"✋ Достигнут лимит вакансий: {max_vacancies}")
+                    break
 
                 if page >= data['pages'] - 1:
                     break
@@ -65,6 +83,7 @@ class SyncVacancySearcher(IVacancySearcher):
                 print(f"⚠️  Ошибка на странице {page}: {e}")
                 break
 
+        print(f"✅ Итого собрано: {len(vacancies)} вакансий")
         return vacancies
 
 
@@ -90,7 +109,8 @@ class AsyncVacancySearcher(IVacancySearcher):
             self,
             query: str,
             area: int = 1,
-            max_pages: int = 20
+            max_pages: int = 20,
+            max_vacancies: Optional[int] = None
     ) -> List[Dict]:
         """
         Синхронная обертка для асинхронного поиска.
@@ -107,14 +127,15 @@ class AsyncVacancySearcher(IVacancySearcher):
             asyncio.set_event_loop(loop)
 
         return loop.run_until_complete(
-            self.search_async(query, area, max_pages)
+            self.search_async(query, area, max_pages, max_vacancies)
         )
 
     async def search_async(
             self,
             query: str,
             area: int = 1,
-            max_pages: int = 20
+            max_pages: int = 20,
+            max_vacancies: Optional[int] = None
     ) -> List[Dict]:
         """Асинхронный поиск вакансий."""
         print(f"🔍 Асинхронный поиск вакансий: {query}")
@@ -131,25 +152,38 @@ class AsyncVacancySearcher(IVacancySearcher):
                 return []
 
             all_vacancies = first_response['items']
+            total_found = first_response.get('found', 0)
             total_pages = min(first_response.get('pages', 1), max_pages, 20)
 
-            print(f"📊 Найдено вакансий: {first_response.get('found', 0)}")
-            print(f"📄 Страниц для обработки: {total_pages}")
+            print(f"📊 Найдено вакансий: {total_found}")
+            print(f"📄 Доступно страниц: {first_response.get('pages', 1)}")
+            print(f"📄 Будет обработано страниц: {total_pages}")
+
+            if max_vacancies:
+                print(f"🎯 Лимит вакансий: {max_vacancies}")
+            else:
+                print(f"🎯 Лимит вакансий: не установлен (собираем все)")
 
             if total_pages <= 1:
+                if max_vacancies and len(all_vacancies) > max_vacancies:
+                    all_vacancies = all_vacancies[:max_vacancies]
                 return all_vacancies
 
-            # Создание задач для остальных страниц
-            tasks = [
-                self._fetch_page(session, query, area, page)
-                for page in range(1, total_pages)
-            ]
-
-            # Выполнение пакетами
+            # ========== ИСПРАВЛЕНИЕ: создаем задачи ТОЛЬКО для текущего батча ==========
+            # Вместо создания всех задач сразу, создаем их пакетами
             batch_size = 5
-            for i in range(0, len(tasks), batch_size):
-                batch = tasks[i:i + batch_size]
-                results = await asyncio.gather(*batch)
+
+            for page_batch_start in range(1, total_pages, batch_size):
+                page_batch_end = min(page_batch_start + batch_size, total_pages)
+
+                # Создаем задачи ТОЛЬКО для текущего батча страниц
+                batch_tasks = [
+                    self._fetch_page(session, query, area, page)
+                    for page in range(page_batch_start, page_batch_end)
+                ]
+
+                # Выполняем только эти задачи
+                results = await asyncio.gather(*batch_tasks)
 
                 for result in results:
                     if result and 'items' in result:
@@ -157,7 +191,14 @@ class AsyncVacancySearcher(IVacancySearcher):
 
                 print(f"📥 Загружено вакансий: {len(all_vacancies)}")
 
-                if i + batch_size < len(tasks):
+                # Проверка лимита
+                if max_vacancies and len(all_vacancies) >= max_vacancies:
+                    all_vacancies = all_vacancies[:max_vacancies]
+                    print(f"✋ Достигнут лимит вакансий: {max_vacancies}")
+                    break  # Теперь break безопасен - все созданные задачи уже awaited
+
+                # Задержка между батчами (кроме последнего)
+                if page_batch_end < total_pages:
                     await asyncio.sleep(0.5)
 
             print(f"✅ Всего собрано вакансий: {len(all_vacancies)}")

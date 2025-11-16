@@ -1,6 +1,8 @@
 """
 Точка входа в приложение.
 Создает и конфигурирует все компоненты согласно принципу Dependency Injection.
+
+Следует принципу Dependency Inversion - создание зависимостей вынесено в фабрику.
 """
 
 from config import Config
@@ -19,14 +21,15 @@ def create_pipeline(config: Config) -> VacancyPipeline:
     Фабрика для создания pipeline с нужными компонентами.
 
     Реализует Dependency Injection - все зависимости передаются извне.
+    Следует принципу Open/Closed - легко добавить новые режимы работы.
 
     Args:
-        config: Объект конфигурации
+        config: Объект конфигурации приложения
 
     Returns:
-        Настроенный VacancyPipeline
+        VacancyPipeline: Настроенный pipeline для обработки вакансий
     """
-    # Выбор компонентов на основе конфигурации
+    # Выбор компонентов в зависимости от режима парсинга
     if config.PARSING_MODE == 'async':
         searcher = AsyncVacancySearcher(max_concurrent=config.MAX_CONCURRENT)
         details_fetcher = AsyncVacancyDetailsFetcher(
@@ -36,10 +39,10 @@ def create_pipeline(config: Config) -> VacancyPipeline:
         searcher = SyncVacancySearcher()
         details_fetcher = SyncVacancyDetailsFetcher()
 
-    # Создание остальных компонентов
+    # Создание компонента визуализации
     visualizer = VacancyVisualizer()
 
-    # Сборка pipeline
+    # Сборка pipeline со всеми зависимостями
     pipeline = VacancyPipeline(
         searcher=searcher,
         details_fetcher=details_fetcher,
@@ -52,35 +55,57 @@ def create_pipeline(config: Config) -> VacancyPipeline:
 
 
 def main():
-    """Главная функция приложения."""
-    print("\n" + "🔍 HH.RU VACANCY ANALYZER ".center(60, "="))
-    print(f"Режим: {Config.MODE}")
-    print(f"Парсинг: {Config.PARSING_MODE}")
+    """
+    Главная функция приложения.
+
+    Координирует выполнение программы в зависимости от выбранного режима.
+    """
+    # Вывод заголовка и информации о конфигурации
+    print("\n" + " 🔍 HH.RU VACANCY ANALYZER ".center(60, "="))
+    print(f"Режим работы: {Config.MODE}")
+    print(f"Режим парсинга: {Config.PARSING_MODE}")
+
+    # Определение лимита вакансий
+    if Config.COLLECT_ALL_VACANCIES:
+        max_vacancies = None
+        print(f"Лимит вакансий: НЕТ (собираем все доступные)")
+    else:
+        max_vacancies = Config.MAX_VACANCIES_LIMIT
+        if max_vacancies:
+            print(f"Лимит вакансий: {max_vacancies}")
+        else:
+            print(f"Лимит вакансий: не установлен")
+
     print("=" * 60 + "\n")
 
     # Создание pipeline через фабрику
     pipeline = create_pipeline(Config)
 
-    # Выполнение анализа в зависимости от режима
+    # Обработка в зависимости от режима
     if Config.MODE == 'single':
+        # Режим анализа одной вакансии
         pipeline.process_single_query(
             query=Config.SINGLE_QUERY,
             area=Config.AREA,
-            max_vacancies=Config.MAX_VACANCIES,
+            max_vacancies=max_vacancies,
+            max_pages=Config.MAX_PAGES_LIMIT,
             show_plots=Config.SHOW_PLOTS,
             tech_keywords=Config.TECH_KEYWORDS
         )
 
     elif Config.MODE == 'batch':
+        # Режим пакетного анализа нескольких вакансий
         pipeline.process_batch_queries(
             queries=Config.BATCH_QUERIES,
             area=Config.AREA,
-            max_vacancies=Config.MAX_VACANCIES,
+            max_vacancies=max_vacancies,
+            max_pages=Config.MAX_PAGES_LIMIT,
             show_plots=Config.SHOW_PLOTS,
             tech_keywords=Config.TECH_KEYWORDS
         )
 
     else:
+        # Неизвестный режим
         print(f"❌ Неизвестный режим: {Config.MODE}")
         print("   Используйте 'single' или 'batch'")
 

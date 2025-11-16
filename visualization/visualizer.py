@@ -41,6 +41,11 @@ class VacancyVisualizer(IVacancyVisualizer):
         self._create_requirements_chart(analyzer, output_path, show_plots)
         self._create_experience_chart(analyzer, output_path, show_plots)
 
+        # ========== НОВЫЕ ВИЗУАЛИЗАЦИИ ==========
+        self._create_companies_chart(analyzer, output_path, show_plots)
+        self._create_schedule_chart(analyzer, output_path, show_plots)
+        self._create_metro_chart(analyzer, output_path, show_plots)
+
     def _create_skills_chart(
             self,
             analyzer: IVacancyAnalyzer,
@@ -178,3 +183,150 @@ class VacancyVisualizer(IVacancyVisualizer):
 
                 plt.close()
                 print(f"  ✅ График распределения опыта сохранен")
+
+    # ========== НОВЫЕ ВИЗУАЛИЗАЦИИ ==========
+
+    def _create_companies_chart(
+            self,
+            analyzer: IVacancyAnalyzer,
+            output_path: Path,
+            show_plots: bool
+    ) -> None:
+        """Создание диаграммы топ компаний."""
+        companies_df = analyzer.analyze_by_company(top_n=15)
+
+        if len(companies_df) > 0 and companies_df['Количество вакансий'].sum() > 0:
+            plt.figure(figsize=(14, 8))
+            colors = sns.color_palette("mako", len(companies_df))
+
+            plt.barh(
+                range(len(companies_df)),
+                companies_df['Количество вакансий'],
+                color=colors
+            )
+            plt.yticks(range(len(companies_df)), companies_df['Компания'])
+            plt.xlabel('Количество вакансий', fontsize=12)
+            plt.title(
+                'Топ-15 компаний по количеству вакансий',
+                fontsize=14,
+                fontweight='bold'
+            )
+            plt.gca().invert_yaxis()
+
+            for i, (v, p) in enumerate(zip(
+                    companies_df['Количество вакансий'],
+                    companies_df['Процент']
+            )):
+                plt.text(v + 0.2, i, f"{v} ({p}%)", va='center', fontsize=9)
+
+            plt.tight_layout()
+            plt.savefig(
+                output_path / 'top_companies.png',
+                dpi=300,
+                bbox_inches='tight'
+            )
+
+            if show_plots:
+                plt.show()
+
+            plt.close()
+            print(f"  ✅ График компаний сохранен")
+
+    def _create_schedule_chart(
+            self,
+            analyzer: IVacancyAnalyzer,
+            output_path: Path,
+            show_plots: bool
+    ) -> None:
+        """Создание диаграммы форматов работы."""
+        schedule_df = analyzer.analyze_by_schedule()
+
+        if len(schedule_df) > 0:
+            plt.figure(figsize=(10, 6))
+            colors = sns.color_palette("Set2", len(schedule_df))
+
+            wedges, texts, autotexts = plt.pie(
+                schedule_df['Количество'],
+                labels=schedule_df['Формат работы'],
+                autopct='%1.1f%%',
+                colors=colors,
+                startangle=90
+            )
+
+            for text in texts:
+                text.set_fontsize(11)
+
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(10)
+
+            plt.title(
+                'Распределение вакансий по формату работы',
+                fontsize=14,
+                fontweight='bold'
+            )
+            plt.tight_layout()
+            plt.savefig(
+                output_path / 'schedule_distribution.png',
+                dpi=300,
+                bbox_inches='tight'
+            )
+
+            if show_plots:
+                plt.show()
+
+            plt.close()
+            print(f"  ✅ График форматов работы сохранен")
+
+    def _create_metro_chart(
+            self,
+            analyzer: IVacancyAnalyzer,
+            output_path: Path,
+            show_plots: bool
+    ) -> None:
+        """Создание диаграммы станций метро."""
+        metro_df = analyzer.analyze_by_metro(top_n=15)
+
+        # Проверка наличия данных
+        if (len(metro_df) > 0 and
+                metro_df['Количество'].sum() > 0 and
+                metro_df.iloc[0]['Станция метро'] != 'Нет данных'):
+
+            plt.figure(figsize=(14, 8))
+            colors = sns.color_palette("coolwarm", len(metro_df))
+
+            plt.barh(
+                range(len(metro_df)),
+                metro_df['Количество'],
+                color=colors
+            )
+            plt.yticks(range(len(metro_df)), metro_df['Станция метро'])
+            plt.xlabel('Количество вакансий', fontsize=12)
+            plt.title(
+                'Топ-15 станций метро по количеству вакансий',
+                fontsize=14,
+                fontweight='bold'
+            )
+            plt.gca().invert_yaxis()
+
+            for i, (v, p) in enumerate(zip(
+                    metro_df['Количество'],
+                    metro_df['Процент']
+            )):
+                plt.text(v + 0.2, i, f"{v} ({p}%)", va='center', fontsize=9)
+
+            plt.tight_layout()
+            plt.savefig(
+                output_path / 'top_metro.png',
+                dpi=300,
+                bbox_inches='tight'
+            )
+
+            if show_plots:
+                plt.show()
+
+            plt.close()
+            print(f"  ✅ График станций метро сохранен")
+        else:
+            print(f"  ⚠️  Нет данных о метро для визуализации")

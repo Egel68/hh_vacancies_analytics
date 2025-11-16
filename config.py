@@ -1,71 +1,145 @@
 """
 Конфигурация приложения.
-Централизованное хранение всех настроек.
+Централизованное хранение всех настроек приложения для анализа вакансий HH.ru.
+
+Следует принципу Single Responsibility - отвечает только за конфигурацию.
 """
 
-from typing import List
+from typing import List, Optional
 
 
 class Config:
-    """Класс конфигурации приложения."""
+    """
+    Класс конфигурации приложения.
 
-    # Режим работы: 'single' или 'batch'
-    MODE = 'batch'
+    Все параметры объявлены как атрибуты класса для простого доступа.
+    Использует type hints для явного указания типов данных.
+    """
 
-    # Режим парсинга: 'sync' или 'async'
-    PARSING_MODE = 'async'
+    # ==================== РЕЖИМЫ РАБОТЫ ====================
 
-    # Параметры для режима 'single'
-    SINGLE_QUERY = 'Python разработчик'
+    # Режим работы приложения: 'single' - одна вакансия, 'batch' - несколько
+    MODE: str = 'single'
 
-    # Параметры для режима 'batch'
-    BATCH_QUERIES = [
-        'Python разработчик',
-        'Data Scientist',
-        'Machine Learning Engineer',
-        'Backend разработчик'
+    # Режим парсинга: 'sync' - синхронный, 'async' - асинхронный
+    PARSING_MODE: str = 'sync'
+
+    # ==================== ЗАПРОСЫ ====================
+
+    # Запрос для single режима
+    SINGLE_QUERY: str = 'Бизнес аналитик'
+
+    # Список запросов для batch режима
+    BATCH_QUERIES: List[str] = [
+        'Системный аналитик',
+        'ML-инженер',
+        'Бизнес аналитик'
     ]
 
-    # Общие параметры поиска
-    AREA = 1  # 1 - Москва, 2 - СПб, 113 - Россия
-    MAX_VACANCIES = 10
-    MAX_CONCURRENT = 1  # Для асинхронного режима
+    # ==================== ПАРАМЕТРЫ ПОИСКА ====================
 
-    # Параметры вывода
-    OUTPUT_DIR = './result'
-    SHOW_PLOTS = True
+    # Код региона (1 - Москва, 2 - Санкт-Петербург)
+    AREA: int = 1
 
-    # Ключевые слова для анализа требований
+    # Максимальное количество вакансий для сбора (None - без ограничений)
+    MAX_VACANCIES_LIMIT: Optional[int] = 30
+
+    # Собирать ли все доступные вакансии (игнорирует MAX_VACANCIES_LIMIT)
+    COLLECT_ALL_VACANCIES: bool = False
+
+    # Максимальное количество страниц для парсинга
+    MAX_PAGES_LIMIT: int = 20
+
+    # Максимальное количество одновременных запросов (для async режима)
+    MAX_CONCURRENT: int = 10
+
+    # ==================== ВЫВОД ====================
+
+    # Директория для сохранения результатов
+    OUTPUT_DIR: str = './result'
+
+    # Показывать ли графики в окне (True) или только сохранять (False)
+    SHOW_PLOTS: bool = True
+
+    # ==================== ТЕХНИЧЕСКИЕ КЛЮЧЕВЫЕ СЛОВА ====================
+
+    # Список технологий и навыков для анализа требований
     TECH_KEYWORDS: List[str] = [
         # Языки программирования
         'Python', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Golang',
-        'C++', 'C#', 'SQL',
-        # Python фреймворки
+        'C++', 'C#', 'PHP', 'Ruby', 'Kotlin', 'Swift', 'R', 'Scala',
+
+        # Web-фреймворки (Python)
         'Django', 'Flask', 'FastAPI', 'Tornado', 'Aiohttp', 'Pyramid',
+
         # Базы данных
         'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch',
-        'ClickHouse', 'SQLAlchemy', 'Alembic',
-        # Очереди сообщений
-        'RabbitMQ', 'Kafka', 'Celery',
-        # DevOps
+        'ClickHouse', 'SQLAlchemy', 'Oracle', 'MS SQL',
+
+        # Очереди и брокеры сообщений
+        'RabbitMQ', 'Kafka', 'Celery', 'Redis Queue', 'SQS',
+
+        # DevOps и инфраструктура
         'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'GitLab CI',
         'GitHub Actions', 'Terraform', 'Ansible', 'Linux',
+
         # Облачные платформы
         'AWS', 'Azure', 'Google Cloud', 'GCP', 'Yandex Cloud',
-        # API
+
+        # API и архитектура
         'REST API', 'GraphQL', 'gRPC', 'WebSocket', 'Microservices',
+        'OpenAPI', 'Swagger',
+
         # Тестирование
-        'Pytest', 'Unittest', 'TDD',
+        'Pytest', 'Unittest', 'TDD', 'BDD', 'Selenium', 'Postman',
+
         # Frontend
         'React', 'Vue', 'Angular', 'Node.js', 'HTML', 'CSS',
-        # Методологии
-        'Agile', 'Scrum', 'Kanban', 'Git',
-        # ML/DS
+
+        # Методологии и инструменты
+        'Agile', 'Scrum', 'Kanban', 'Git', 'Jira', 'Confluence',
+        'BPMN', 'UML', 'IDEF',
+
+        # Data Science и ML
         'Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch',
-        'Machine Learning', 'Deep Learning', 'Data Science',
+        'Machine Learning', 'Data Science', 'NLP', 'LLM',
+
+        # Аналитика и визуализация
+        'Power BI', 'Tableau', 'Excel', 'Google Sheets',
+
+        # Бизнес-системы
+        'Битрикс24', 'Bitrix24', '1C', 'SAP', 'ERP', 'CRM',
+
         # Языки
         'Английский', 'English', 'Английский язык',
-        # Другое
-        'Asyncio', 'Scrapy', 'BeautifulSoup', 'Selenium',
-        'Nginx', 'Gunicorn', 'Uvicorn'
     ]
+
+    # ==================== ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ ТРЕБОВАНИЙ ====================
+
+    # Минимальная длина требования (символов)
+    REQ_MIN_LENGTH: int = 20
+
+    # Максимальная длина требования (символов)
+    REQ_MAX_LENGTH: int = 280
+
+    # Минимальное количество слов в требовании
+    REQ_MIN_WORDS: int = 3
+
+    # ==================== ПАРАМЕТРЫ ИЗВЛЕЧЕНИЯ ОБЯЗАННОСТЕЙ ====================
+
+    # Минимальная длина обязанности (символов)
+    RESP_MIN_LENGTH: int = 20
+
+    # Максимальная длина обязанности (символов)
+    RESP_MAX_LENGTH: int = 350
+
+    # Минимальное количество слов в обязанности
+    RESP_MIN_WORDS: int = 4
+
+    # ==================== ПАРАМЕТРЫ ОБРАБОТКИ ====================
+
+    # Порог схожести для дедупликации (0.0 - 1.0)
+    SIMILARITY_THRESHOLD: float = 0.80
+
+    # Использовать ли классификатор для разделения требований и обязанностей
+    USE_CLASSIFIER: bool = True
