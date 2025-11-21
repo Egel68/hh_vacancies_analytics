@@ -15,19 +15,18 @@ class Config:
     Все параметры объявлены как атрибуты класса для простого доступа.
     Использует type hints для явного указания типов данных.
     """
-
-    # ==================== РЕЖИМЫ РАБОТЫ ====================
+    # ========== ОСНОВНЫЕ НАСТРОЙКИ ==========
 
     # Режим работы приложения: 'single' - одна вакансия, 'batch' - несколько
     MODE: str = 'single'
 
     # Режим парсинга: 'sync' - синхронный, 'async' - асинхронный
-    PARSING_MODE: str = 'sync'
+    PARSING_MODE: str = 'async'
 
     # ==================== ЗАПРОСЫ ====================
 
     # Запрос для single режима
-    SINGLE_QUERY: str = 'Бизнес аналитик'
+    SINGLE_QUERY: str = 'ML-инженер'
 
     # Список запросов для batch режима
     BATCH_QUERIES: List[str] = [
@@ -42,7 +41,7 @@ class Config:
     AREA: int = 1
 
     # Максимальное количество вакансий для сбора (None - без ограничений)
-    MAX_VACANCIES_LIMIT: Optional[int] = 30
+    MAX_VACANCIES_LIMIT: Optional[int] = 300
 
     # Собирать ли все доступные вакансии (игнорирует MAX_VACANCIES_LIMIT)
     COLLECT_ALL_VACANCIES: bool = False
@@ -53,13 +52,30 @@ class Config:
     # Максимальное количество одновременных запросов (для async режима)
     MAX_CONCURRENT: int = 10
 
-    # ==================== ВЫВОД ====================
+    # ========== СТРАТЕГИИ RETRY ==========
+    # Доступные стратегии: 'exponential', 'linear', 'fibonacci', 'jitter', 'adaptive', 'circuit_breaker'
+    RETRY_STRATEGY: str = 'exponential'
+    # Базовые настройки retry
+    RETRY_MAX_ATTEMPTS: int = 5
+    RETRY_INITIAL_DELAY: float = 3.0
+    RETRY_BACKOFF_FACTOR: float = 2.0
+    RETRY_MAX_DELAY: float = 120.0
+    RETRY_STATUS_CODES: List[int] = [403, 429, 500, 502, 503, 504]
 
-    # Директория для сохранения результатов
+    # Настройки для Jitter стратегии
+    RETRY_JITTER_FACTOR: float = 0.3  # 30% случайности
+
+    # Настройки для Adaptive стратегии
+    RETRY_RATE_LIMIT_DELAY: float = 60.0  # Задержка для 429
+    RETRY_FORBIDDEN_DELAY: float = 30.0  # Задержка для 403
+
+    # Настройки для Circuit Breaker
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 10  # Ошибок для открытия
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT: float = 120.0  # Время восстановления
+
+    # ========== ВЫВОД ==========
     OUTPUT_DIR: str = './result'
-
-    # Показывать ли графики в окне (True) или только сохранять (False)
-    SHOW_PLOTS: bool = True
+    SHOW_PLOTS: bool = False
 
     # ==================== ТЕХНИЧЕСКИЕ КЛЮЧЕВЫЕ СЛОВА ====================
 
