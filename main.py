@@ -14,6 +14,7 @@ from fetchers.details_fetcher import (
 from analytics.analyzer import VacancyAnalyzer
 from visualization.visualizer import VacancyVisualizer
 from pipeline.vacancy_pipeline import VacancyPipeline
+from core.retry_strategy import ExponentialBackoffRetry
 
 
 def create_pipeline(config: Config) -> VacancyPipeline:
@@ -29,15 +30,25 @@ def create_pipeline(config: Config) -> VacancyPipeline:
     Returns:
         VacancyPipeline: Настроенный pipeline для обработки вакансий
     """
-    # Выбор компонентов в зависимости от режима парсинга
+    # Создаем стратегию повторных попыток
+    retry_strategy = ExponentialBackoffRetry(
+        max_attempts=config.RETRY_MAX_ATTEMPTS,
+        initial_delay=config.RETRY_INITIAL_DELAY,
+        backoff_factor=config.RETRY_BACKOFF_FACTOR,
+        retryable_status_codes=config.RETRY_STATUS_CODES
+    )
+
     if config.PARSING_MODE == 'async':
         searcher = AsyncVacancySearcher(max_concurrent=config.MAX_CONCURRENT)
         details_fetcher = AsyncVacancyDetailsFetcher(
-            max_concurrent=config.MAX_CONCURRENT
+            max_concurrent=config.MAX_CONCURRENT,
+            retry_strategy=retry_strategy
         )
     else:
         searcher = SyncVacancySearcher()
-        details_fetcher = SyncVacancyDetailsFetcher()
+        details_fetcher = SyncVacancyDetailsFetcher(
+            retry_strategy=retry_strategy
+        )
 
     # Создание компонента визуализации
     visualizer = VacancyVisualizer()
@@ -64,6 +75,8 @@ def main():
     print("\n" + " 🔍 HH.RU VACANCY ANALYZER ".center(60, "="))
     print(f"Режим работы: {Config.MODE}")
     print(f"Режим парсинга: {Config.PARSING_MODE}")
+    print(f"Повторных попыток: {Config.RETRY_MAX_ATTEMPTS}")
+    print(f"Начальная задержка: {Config.RETRY_INITIAL_DELAY}с")
 
     # Определение лимита вакансий
     if Config.COLLECT_ALL_VACANCIES:

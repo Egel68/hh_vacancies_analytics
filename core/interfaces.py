@@ -64,6 +64,11 @@ class IVacancyDetailsFetcher(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_error_statistics(self) -> Dict:
+        """Возвращает статистику по ошибкам"""
+        pass
+
 
 # ==================== СОХРАНЕНИЕ ДАННЫХ ====================
 
