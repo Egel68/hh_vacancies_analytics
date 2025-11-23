@@ -14,11 +14,25 @@ from fetchers.details_fetcher import (
 from analytics.analyzer import VacancyAnalyzer
 from visualization.visualizer import VacancyVisualizer
 from pipeline.vacancy_pipeline import VacancyPipeline
+from core.retry_strategy import (
+    ExponentialBackoffRetry,
+    LinearRetry,
+    FibonacciBackoffRetry,
+    ExponentialBackoffWithJitter,
+    AdaptiveRetry,
+    CircuitBreakerRetry,
+    IRetryStrategy
+)
+from typing import Optional
+import sys
 
 
-def create_pipeline(config: Config) -> VacancyPipeline:
+def create_retry_strategy(config: Config) -> IRetryStrategy:
     """
-    Фабрика для создания pipeline с нужными компонентами.
+    Factory Method для создания стратегии повторных попыток
+
+    Применяет Factory Pattern для гибкого создания объектов
+    """
 
     Реализует Dependency Injection - все зависимости передаются извне.
     Следует принципу Open/Closed - легко добавить новые режимы работы.
@@ -33,11 +47,14 @@ def create_pipeline(config: Config) -> VacancyPipeline:
     if config.PARSING_MODE == 'async':
         searcher = AsyncVacancySearcher(max_concurrent=config.MAX_CONCURRENT)
         details_fetcher = AsyncVacancyDetailsFetcher(
-            max_concurrent=config.MAX_CONCURRENT
+            max_concurrent=config.MAX_CONCURRENT,
+            retry_strategy=retry_strategy
         )
     else:
         searcher = SyncVacancySearcher()
-        details_fetcher = SyncVacancyDetailsFetcher()
+        details_fetcher = SyncVacancyDetailsFetcher(
+            retry_strategy=retry_strategy
+        )
 
     # Создание компонента визуализации
     visualizer = VacancyVisualizer()
@@ -104,6 +121,32 @@ def main():
             tech_keywords=Config.TECH_KEYWORDS
         )
 
+
+def print_footer(success: bool = True) -> None:
+    """Выводит итоговое сообщение"""
+
+    if success:
+        footer = f"""
+{'=' * 80}
+{'✅ АНАЛИЗ УСПЕШНО ЗАВЕРШЁН':^80}
+{'=' * 80}
+
+💡 Проверьте директорию './result' для просмотра результатов
+
+📊 Доступные файлы:
+   • raw.json                          - Исходные данные вакансий
+   • processed.csv                     - Обработанные данные
+   • skills.csv                        - Анализ навыков
+   • requirements.csv                  - Анализ требований
+   • companies.csv                     - Топ компаний
+   • salary_stats.json                 - Статистика зарплат
+   • schedule.csv                      - Форматы работы
+   • metro.csv                         - Распределение по метро
+   • extracted_requirements_*.csv      - Извлечённые требования
+   • *.png                             - Графики и визуализации
+
+{'=' * 80}
+"""
     else:
         # Неизвестный режим
         print(f"❌ Неизвестный режим: {Config.MODE}")

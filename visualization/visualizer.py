@@ -57,7 +57,7 @@ class VacancyVisualizer(IVacancyVisualizer):
 
         if len(skills_df) > 0:
             plt.figure(figsize=(14, 8))
-            top_skills = skills_df.head(20)
+            top_skills = skills_df.head(50)
             colors = sns.color_palette("viridis", len(top_skills))
 
             plt.barh(
