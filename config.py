@@ -143,3 +143,20 @@ class Config:
 
     # Использовать ли классификатор для разделения требований и обязанностей
     USE_CLASSIFIER: bool = True
+
+    # Retry Configuration
+    USE_RETRY: bool = True  # Использовать retry-механизм
+    RETRY_STRATEGY_TYPE: str = 'exponential'  # 'exponential' или 'linear'
+    SAVE_FAILED_REQUESTS: bool = True  # Сохранять неудачные запросы
+    SHOW_DETAILED_ERRORS: bool = True  # Показывать детальные ошибки
+
+    RETRY_MAX_ATTEMPTS: int = 5
+    RETRY_BASE_DELAY: float = 2.0  # секунды
+    RETRY_MAX_DELAY: float = 60.0  # секунды
+    RETRY_EXPONENTIAL_BASE: float = 2.0
+    RETRY_STATUSES_TO_RETRY: List[int] = [403, 429, 500, 502, 503, 504]
+
+    # Request delays
+    REQUEST_DELAY: float = 0.2
+    BATCH_DELAY: float = 1.5
+    ERROR_DELAY: float = 5.0

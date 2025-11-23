@@ -110,6 +110,13 @@ class VacancyPipeline:
         # 2. Получение детальной информации
         detailed_vacancies = self.details_fetcher.fetch_details(vacancies_list)
 
+        # Сохраняем информацию о неудачных запросах
+        if hasattr(self.details_fetcher, 'get_error_tracker'):
+            error_tracker = self.details_fetcher.get_error_tracker()
+            error_tracker.save_failed_to_file(
+                str(output_dir / 'failed_requests.json')
+            )
+
         if not detailed_vacancies:
             print(f"❌ Не удалось получить детали для: {query}")
             return {}
