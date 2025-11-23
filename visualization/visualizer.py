@@ -57,7 +57,7 @@ class VacancyVisualizer(IVacancyVisualizer):
 
         if len(skills_df) > 0:
             plt.figure(figsize=(14, 8))
-            top_skills = skills_df.head(50)
+            top_skills = skills_df.head(20)
             colors = sns.color_palette("viridis", len(top_skills))
 
             plt.barh(
@@ -193,7 +193,7 @@ class VacancyVisualizer(IVacancyVisualizer):
             show_plots: bool
     ) -> None:
         """Создание диаграммы топ компаний."""
-        companies_df = analyzer.analyze_by_company(top_n=40)
+        companies_df = analyzer.analyze_by_company(top_n=15)
 
         if len(companies_df) > 0 and companies_df['Количество вакансий'].sum() > 0:
             plt.figure(figsize=(14, 8))
@@ -286,7 +286,7 @@ class VacancyVisualizer(IVacancyVisualizer):
             show_plots: bool
     ) -> None:
         """Создание диаграммы станций метро."""
-        metro_df = analyzer.analyze_by_metro(top_n=40)
+        metro_df = analyzer.analyze_by_metro(top_n=15)
 
         # Проверка наличия данных
         if (len(metro_df) > 0 and
